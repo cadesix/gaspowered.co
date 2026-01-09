@@ -6,7 +6,7 @@ export default function Home() {
       <div className="flex flex-col items-center gap-8">
         <div className="relative h-64 w-64">
           <Image
-            src="/img/gastank.png"
+            src="/img/logo.png"
             alt="Gas"
             fill
             className="object-cover"
