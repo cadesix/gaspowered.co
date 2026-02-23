@@ -777,6 +777,7 @@ export default function ArenaPage() {
 
       spawnParticles(originX, originY);
       setHighlightedSide(side);
+      setAdminOpen(false);
 
       // Create prediction
       const predId = ++predictionIdCounter;
