@@ -11,6 +11,7 @@ const GAS_LOGO = "/img/gas_logo.jpg";
 
 const STEPS = [
   { label: "Analyzing website", desc: "Scraping content & brand identity" },
+  { label: "Extracting brand assets", desc: "Downloading images & colors" },
   { label: "Crafting ad strategy", desc: "Identifying compelling angles" },
   { label: "Generating creatives", desc: "Producing ad variations" },
   { label: "Complete", desc: "Your creatives are ready" },
@@ -305,6 +306,10 @@ export default function InstantCreativesPage() {
     Array(4).fill(null),
   );
   const [imageCount, setImageCount] = useState(0);
+  const [brandColors, setBrandColors] = useState<string[]>([]);
+  const [brandImages, setBrandImages] = useState<
+    { url: string; description: string }[]
+  >([]);
   const [error, setError] = useState<string | null>(null);
   const [lightboxImage, setLightboxImage] = useState<GeneratedImage | null>(
     null,
@@ -375,8 +380,8 @@ export default function InstantCreativesPage() {
               const data = JSON.parse(line.slice(6));
               switch (currentEvent) {
                 case "step":
-                  if (data.step === 3) {
-                    setCurrentStep(4);
+                  if (data.step === 4) {
+                    setCurrentStep(5);
                     setPhase("done");
                   } else {
                     setCurrentStep(data.step);
@@ -384,6 +389,10 @@ export default function InstantCreativesPage() {
                   break;
                 case "analysis":
                   setSiteTitle(data.title || "");
+                  break;
+                case "assets":
+                  if (data.colors) setBrandColors(data.colors);
+                  if (data.images) setBrandImages(data.images);
                   break;
                 case "concepts":
                   if (data.insights) setInsights(data.insights);
@@ -542,6 +551,8 @@ export default function InstantCreativesPage() {
     setError(null);
     setMorePrompt("");
     setIterateTarget(null);
+    setBrandColors([]);
+    setBrandImages([]);
   };
 
   const totalSlots = images.length;
@@ -774,6 +785,73 @@ export default function InstantCreativesPage() {
                 >
                   <StepProgress currentStep={currentStep} />
                 </div>
+
+                {/* Brand Assets */}
+                <AnimatePresence>
+                  {(brandColors.length > 0 || brandImages.length > 0) && (
+                    <motion.div
+                      className="px-5 py-5 border-b flex flex-col gap-4"
+                      style={{ borderColor: "rgba(255,255,255,0.06)" }}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.5 }}
+                    >
+                      {brandColors.length > 0 && (
+                        <div>
+                          <div
+                            className="text-[11px] font-mono uppercase tracking-wider mb-2.5"
+                            style={{ color: "rgba(255,255,255,0.25)" }}
+                          >
+                            Brand Colors
+                          </div>
+                          <div className="flex gap-1.5 flex-wrap">
+                            {brandColors.map((color, i) => (
+                              <div
+                                key={i}
+                                className="rounded"
+                                title={color}
+                                style={{
+                                  width: 24,
+                                  height: 24,
+                                  background: color,
+                                  border: "1px solid rgba(255,255,255,0.12)",
+                                }}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {brandImages.length > 0 && (
+                        <div>
+                          <div
+                            className="text-[11px] font-mono uppercase tracking-wider mb-2.5"
+                            style={{ color: "rgba(255,255,255,0.25)" }}
+                          >
+                            Brand Assets
+                          </div>
+                          <div className="flex gap-1.5 flex-wrap">
+                            {brandImages.slice(0, 8).map((img, i) => (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                key={i}
+                                src={img.url}
+                                alt=""
+                                title={img.description}
+                                className="rounded object-cover"
+                                style={{
+                                  width: 40,
+                                  height: 40,
+                                  border: "1px solid rgba(255,255,255,0.1)",
+                                  background: "rgba(255,255,255,0.03)",
+                                }}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
                 {/* Insights */}
                 <AnimatePresence>
