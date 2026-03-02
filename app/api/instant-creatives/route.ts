@@ -79,20 +79,34 @@ function extractImageUrls(html: string, baseUrl: string): string[] {
   const urls: string[] = [];
   const seen = new Set<string>();
 
+  const decodeEntities = (s: string) =>
+    s.replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"');
+
   const resolve = (src: string): string | null => {
     if (!src || src.startsWith("data:")) return null;
     try {
-      return new URL(src, baseUrl).href;
+      return new URL(decodeEntities(src), baseUrl).href;
     } catch {
       return null;
     }
   };
 
-  const add = (url: string | null) => {
-    if (url && !seen.has(url)) {
-      seen.add(url);
-      urls.push(url);
+  // Deduplicate by base image path (ignore query params for uniqueness)
+  const getImageKey = (url: string): string => {
+    try {
+      const u = new URL(url);
+      return u.origin + u.pathname;
+    } catch {
+      return url;
     }
+  };
+
+  const add = (url: string | null) => {
+    if (!url) return;
+    const key = getImageKey(url);
+    if (seen.has(key)) return;
+    seen.add(key);
+    urls.push(url);
   };
 
   // og:image first
@@ -106,20 +120,48 @@ function extractImageUrls(html: string, baseUrl: string): string[] {
   let match;
   while ((match = imgPattern.exec(html)) !== null) {
     const tag = match[0];
+
+    // Skip tracking pixels and tiny images
     const src =
       tag.match(/src=["']([^"']+)["']/i)?.[1] ||
       tag.match(/data-src=["']([^"']+)["']/i)?.[1];
-    if (!src) continue;
 
-    // Skip tracking pixels and tiny images
-    if (/tracking|pixel|spacer|1x1/i.test(src)) continue;
-    if (src.startsWith("data:image/svg")) continue;
+    if (src) {
+      if (/tracking|pixel|spacer|1x1/i.test(src)) continue;
+      if (src.startsWith("data:image/svg")) continue;
+    }
 
     const width = parseInt(tag.match(/width=["']?(\d+)/i)?.[1] || "999", 10);
     const height = parseInt(tag.match(/height=["']?(\d+)/i)?.[1] || "999", 10);
-    if (width < 100 || height < 100) continue;
+    if (width < 50 || height < 50) continue;
 
-    add(resolve(src));
+    // Prefer a mid-resolution srcset entry over the full-res src
+    const srcsetMatch = tag.match(/srcset=["']([^"']+)["']/i)?.[1];
+    let bestUrl: string | null = null;
+
+    if (srcsetMatch) {
+      // Parse srcset: "url1 512w, url2 1024w, url3 2048w"
+      const entries = decodeEntities(srcsetMatch)
+        .split(",")
+        .map((e) => e.trim().split(/\s+/))
+        .filter((parts) => parts.length >= 2)
+        .map(([url, descriptor]) => ({
+          url,
+          width: parseInt(descriptor) || 0,
+        }))
+        .filter((e) => e.width > 0)
+        .sort((a, b) => a.width - b.width);
+
+      // Pick the smallest entry >= 512px, or the largest available
+      const midRes = entries.find((e) => e.width >= 512) || entries[entries.length - 1];
+      if (midRes) bestUrl = resolve(midRes.url);
+    }
+
+    if (!bestUrl && src) {
+      bestUrl = resolve(src);
+    }
+
+    add(bestUrl);
     if (urls.length >= 15) break;
   }
 
@@ -131,7 +173,8 @@ async function downloadImages(urls: string[]): Promise<BrandImage[]> {
     urls.map(async (url) => {
       const res = await fetch(url, {
         headers: { "User-Agent": BROWSER_UA },
-        signal: AbortSignal.timeout(8000),
+        redirect: "follow",
+        signal: AbortSignal.timeout(10000),
       });
 
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -140,13 +183,12 @@ async function downloadImages(urls: string[]): Promise<BrandImage[]> {
       if (!contentType.startsWith("image/")) throw new Error("Not an image");
 
       const buffer = Buffer.from(await res.arrayBuffer());
+
+      // Skip too small (<3KB) or too large (>2MB)
+      if (buffer.length < 3 * 1024) throw new Error("Image too small");
+      if (buffer.length > 2 * 1024 * 1024) throw new Error("Image too large");
+
       const base64 = buffer.toString("base64");
-
-      // Skip too small (<5KB) or too large (>500KB base64 ≈ 375KB binary)
-      if (buffer.length < 5 * 1024 || buffer.length > 500 * 1024) {
-        throw new Error("Image size out of range");
-      }
-
       const mimeType = contentType.split(";")[0].trim();
 
       return { url, base64, mimeType };
