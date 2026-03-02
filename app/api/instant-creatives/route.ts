@@ -178,10 +178,7 @@ Example: ["prompt 1", "prompt 2", ...]`,
   return JSON.parse(text);
 }
 
-async function revisePrompt(
-  prompt: string,
-  feedback: string,
-): Promise<string> {
+async function revisePrompt(prompt: string, feedback: string): Promise<string> {
   const res = await fetch(
     `${GEMINI_API}/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
     {
@@ -220,7 +217,7 @@ IMPORTANT: Return ONLY the revised prompt text, nothing else.`,
 
 async function generateImage(prompt: string): Promise<string> {
   const res = await fetch(
-    `${GEMINI_API}/gemini-2.5-flash-image:generateContent?key=${process.env.GEMINI_API_KEY}`,
+    `${GEMINI_API}/gemini-3.1-flash-image-preview:generateContent?key=${process.env.GEMINI_API_KEY}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -236,6 +233,9 @@ async function generateImage(prompt: string): Promise<string> {
         ],
         generationConfig: {
           responseModalities: ["TEXT", "IMAGE"],
+          imageConfig: {
+            aspectRatio: "1:1",
+          },
         },
       }),
     },
@@ -265,12 +265,7 @@ async function generateImage(prompt: string): Promise<string> {
 }
 
 export async function POST(req: NextRequest) {
-  const {
-    url,
-    count = 4,
-    customPrompt,
-    basePrompts,
-  } = await req.json();
+  const { url, count = 4, customPrompt, basePrompts } = await req.json();
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream({

@@ -585,7 +585,7 @@ export default function InstantCreativesPage() {
           <img
             src={GAS_LOGO}
             alt=""
-            className="w-6 h-6 rounded-full self-center object-cover shrink-0"
+            className="w-6 h-6 aspect-square rounded-full self-center object-cover shrink-0"
             style={{ border: "1.5px solid rgba(255,255,255,0.15)" }}
           />
           <span
@@ -607,7 +607,7 @@ export default function InstantCreativesPage() {
                 <img
                   src={favicon}
                   alt=""
-                  className="w-5 h-5 rounded object-contain shrink-0"
+                  className="w-5 h-5 aspect-square rounded object-contain shrink-0"
                   style={{ border: "1px solid rgba(255,255,255,0.1)" }}
                 />
                 <span className="text-[13px] font-mono text-white/50">
@@ -749,7 +749,7 @@ export default function InstantCreativesPage() {
                       <img
                         src={favicon}
                         alt=""
-                        className="w-10 h-10 rounded-lg object-contain shrink-0"
+                        className="w-10 h-10 aspect-square rounded-lg object-contain shrink-0"
                         style={{
                           border: "1px solid rgba(255,255,255,0.1)",
                           background: "rgba(255,255,255,0.05)",
