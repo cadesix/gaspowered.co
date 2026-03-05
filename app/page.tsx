@@ -322,16 +322,19 @@ export default function SalesPage() {
                 </h2>
 
                 <div className="mt-4 md:mt-6">
-                  <button
-                    className="retro-btn px-5 py-2.5 md:px-5 md:py-2 text-black uppercase tracking-tight text-lg md:text-[16px]"
+                  <a
+                    href="https://calendly.com/cade-gaspowered/30min"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="retro-btn inline-block px-5 py-2.5 md:px-5 md:py-2 text-black uppercase tracking-tight text-lg md:text-[16px] no-underline"
                     style={{
                       fontFamily: "'PPMondwest', serif",
                       background: '#D9D9D9',
                       boxShadow: 'inset 2px 2px 0px #fff, inset -2px -2px 0px #808080, 2px 2px 0px rgba(0,0,0,0.7)',
                     }}
                   >
-                    Join Waitlist
-                  </button>
+                    Book a Call
+                  </a>
                 </div>
               </div>
 
