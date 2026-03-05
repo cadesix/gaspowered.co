@@ -289,12 +289,12 @@ export default function SalesPage() {
           <div className="p-[6px]">
             {/* Title Bar */}
             <div className="flex items-center justify-between px-2 py-1.5 md:px-3 md:py-2" style={{ background: '#0D2395' }}>
-              <span className="text-white font-normal tracking-wide md:tracking-widest uppercase font-mono text-[10px] md:text-[13px]">
+              <span className="text-white font-normal tracking-wide md:tracking-widest uppercase font-mono text-sm md:text-[13px]">
                 Stuck in the Stone Age?
               </span>
               <div className="flex gap-1 md:gap-1.5">
                 <button
-                  className="retro-btn-sm w-5 h-5 md:w-7 md:h-7 flex items-center justify-center text-black text-[10px] md:text-sm font-bold leading-none"
+                  className="retro-btn-sm w-7 h-7 md:w-7 md:h-7 flex items-center justify-center text-black text-sm md:text-sm font-bold leading-none"
                   style={{
                     background: '#C0C0C0',
                     boxShadow: 'inset 1px 1px 0px #fff, inset -1px -1px 0px #808080',
@@ -303,7 +303,7 @@ export default function SalesPage() {
                   ‒
                 </button>
                 <button
-                  className="retro-btn-sm w-5 h-5 md:w-7 md:h-7 flex items-center justify-center text-black text-[10px] md:text-sm font-bold leading-none"
+                  className="retro-btn-sm w-7 h-7 md:w-7 md:h-7 flex items-center justify-center text-black text-sm md:text-sm font-bold leading-none"
                   style={{
                     background: '#C0C0C0',
                     boxShadow: 'inset 1px 1px 0px #fff, inset -1px -1px 0px #808080',
@@ -316,14 +316,14 @@ export default function SalesPage() {
 
             {/* Body */}
             <div className="relative flex items-center justify-between overflow-hidden">
-              <div className="p-5 md:p-8 relative z-10" style={{ fontFamily: "'PPMondwest', serif" }}>
-                <h2 className="text-black tracking-tight uppercase whitespace-nowrap text-lg md:text-[22px]">
+              <div className="p-6 md:p-8 relative z-10" style={{ fontFamily: "'PPMondwest', serif" }}>
+                <h2 className="text-black tracking-tight uppercase whitespace-nowrap text-2xl md:text-[22px]">
                   Come with us!
                 </h2>
 
                 <div className="mt-4 md:mt-6">
                   <button
-                    className="retro-btn px-3 py-1.5 md:px-5 md:py-2 text-black uppercase tracking-tight text-sm md:text-[16px]"
+                    className="retro-btn px-5 py-2.5 md:px-5 md:py-2 text-black uppercase tracking-tight text-lg md:text-[16px]"
                     style={{
                       fontFamily: "'PPMondwest', serif",
                       background: '#D9D9D9',
@@ -338,7 +338,7 @@ export default function SalesPage() {
               <img
                 src="/images/hand.png"
                 alt="Hand reaching out"
-                className="object-contain mr-[-6px] h-[80px] md:h-[120px]"
+                className="object-contain mr-[-6px] h-[110px] md:h-[120px]"
               />
             </div>
           </div>
