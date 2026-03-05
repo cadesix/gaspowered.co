@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import Script from "next/script";
 
 function MarchingHLine({ className = "" }: { className?: string }) {
   return (
@@ -52,9 +53,23 @@ const TEXT_LINE2_START = TEXT_LINE1_START + 300;
 const CONTENT_START = TEXT_LINE2_START + 400;
 const DIALOG_START = CONTENT_START + 3000;
 
+declare global {
+  interface Window {
+    Calendly?: {
+      initPopupWidget: (opts: { url: string }) => void;
+    };
+  }
+}
+
 export default function SalesPage() {
   const [phase, setPhase] = useState(0);
   // 0: nothing, 1: top hline, 2: vlines, 3: inner hlines, 4: line1, 5: line2, 6: content, 7: dialog
+
+  const openCalendly = useCallback(() => {
+    window.Calendly?.initPopupWidget({
+      url: 'https://calendly.com/cade-gaspowered/30min',
+    });
+  }, []);
 
   useEffect(() => {
     const timers = [
@@ -71,6 +86,8 @@ export default function SalesPage() {
 
   return (
     <div className="min-h-screen bg-black text-white" style={{ fontFamily: "'Saans', sans-serif" }}>
+      <link href="https://assets.calendly.com/assets/external/widget.css" rel="stylesheet" />
+      <Script src="https://assets.calendly.com/assets/external/widget.js" strategy="lazyOnload" />
       <style>{`
         @font-face {
           font-family: 'PPMondwest';
@@ -322,11 +339,9 @@ export default function SalesPage() {
                 </h2>
 
                 <div className="mt-4 md:mt-6">
-                  <a
-                    href="https://calendly.com/cade-gaspowered/30min"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="retro-btn inline-block px-5 py-2.5 md:px-5 md:py-2 text-black uppercase tracking-tight text-lg md:text-[16px] no-underline"
+                  <button
+                    onClick={openCalendly}
+                    className="retro-btn px-5 py-2.5 md:px-5 md:py-2 text-black uppercase tracking-tight text-lg md:text-[16px] cursor-pointer"
                     style={{
                       fontFamily: "'PPMondwest', serif",
                       background: '#D9D9D9',
@@ -334,7 +349,7 @@ export default function SalesPage() {
                     }}
                   >
                     Book a Call
-                  </a>
+                  </button>
                 </div>
               </div>
 
