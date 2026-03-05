@@ -50,7 +50,7 @@ const INNER_HLINES_START = VLINE_START + LINE_DURATION;
 const TEXT_LINE1_START = INNER_HLINES_START + 200;
 const TEXT_LINE2_START = TEXT_LINE1_START + 300;
 const CONTENT_START = TEXT_LINE2_START + 400;
-const DIALOG_START = CONTENT_START + 4000;
+const DIALOG_START = CONTENT_START + 3000;
 
 export default function SalesPage() {
   const [phase, setPhase] = useState(0);
