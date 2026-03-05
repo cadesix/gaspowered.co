@@ -1,156 +1,353 @@
-'use client';
+"use client";
 
-import { useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect } from "react";
 
-export default function Home() {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const mousePos = useRef({ x: 0, y: 0 });
-  const rafId = useRef<number | undefined>(undefined);
-  const animationStartTime = useRef<number>(Date.now());
-  const letterRefs = useRef<Map<number, HTMLSpanElement>>(new Map());
-  const letterRandomness = useRef<Map<number, { strength: number; angleOffset: number; duration: number; idleDelay: number; idleDuration: number; idleAmplitude: number; idlePhase: number }>>(new Map());
+function MarchingHLine({ className = "" }: { className?: string }) {
+  return (
+    <div className={`w-full overflow-hidden ${className}`} style={{ height: 1 }}>
+      <svg width="100%" height="1" className="block">
+        <line
+          x1="0"
+          y1="0.5"
+          x2="100%"
+          y2="0.5"
+          stroke="#333"
+          strokeWidth="1"
+          strokeDasharray="5 5"
+          className="animate-march-h"
+        />
+      </svg>
+    </div>
+  );
+}
 
-  const text = "Gas is a consumer software company based in New York";
-  const words = text.split(' ');
+function MarchingVLine({ side, className = "" }: { side: "left" | "right"; className?: string }) {
+  return (
+    <div
+      className={`absolute top-0 bottom-0 ${side === "left" ? "left-0" : "right-0"} ${className}`}
+      style={{ width: 1 }}
+    >
+      <svg width="1" height="100%" className="block h-full">
+        <line
+          x1="0.5"
+          y1="0"
+          x2="0.5"
+          y2="100%"
+          stroke="#333"
+          strokeWidth="1"
+          strokeDasharray="5 5"
+          className="animate-march-v"
+        />
+      </svg>
+    </div>
+  );
+}
 
-  // Generate consistent randomness for each letter
-  const getLetterRandomness = useCallback((idx: number) => {
-    if (!letterRandomness.current.has(idx)) {
-      letterRandomness.current.set(idx, {
-        strength: 0.7 + Math.random() * 0.6, // Random multiplier between 0.7-1.3
-        angleOffset: (Math.random() - 0.5) * 0.6, // Random angle offset in radians
-        duration: 0.6 + Math.random() * 0.4, // Random duration between 0.6s-1.0s
-        idleDelay: Math.random() * 3000, // Stagger idle animations (ms)
-        idleDuration: 3000 + Math.random() * 2000, // Random idle animation duration 3-5s (ms)
-        idleAmplitude: 0.5 + Math.random() * 0.5, // Idle movement amplitude 0.5-1px
-        idlePhase: Math.random() * Math.PI * 2, // Random starting phase
-      });
-    }
-    return letterRandomness.current.get(idx)!;
-  }, []);
+const LINE_DURATION = 300;
+const HLINE_START = 0;
+const VLINE_START = LINE_DURATION;
+const INNER_HLINES_START = VLINE_START + LINE_DURATION;
+const TEXT_LINE1_START = INNER_HLINES_START + 200;
+const TEXT_LINE2_START = TEXT_LINE1_START + 300;
+const CONTENT_START = TEXT_LINE2_START + 400;
+const DIALOG_START = CONTENT_START + 4000;
 
-  const calculateIdleOffset = useCallback((idx: number, currentTime: number) => {
-    const randomness = getLetterRandomness(idx);
-    const elapsed = currentTime - animationStartTime.current - randomness.idleDelay;
-
-    if (elapsed < 0) return { x: 0, y: 0 };
-
-    const progress = (elapsed % randomness.idleDuration) / randomness.idleDuration;
-    const angle = progress * Math.PI * 2 + randomness.idlePhase;
-
-    const idleX = Math.cos(angle) * randomness.idleAmplitude;
-    const idleY = Math.sin(angle * 1.3) * randomness.idleAmplitude; // Different frequency for y
-
-    return { x: idleX, y: idleY };
-  }, [getLetterRandomness]);
-
-  const calculateMouseOffset = useCallback((rect: DOMRect, mouseX: number, mouseY: number, idx: number) => {
-    const centerX = rect.left + rect.width / 2;
-    const centerY = rect.top + rect.height / 2;
-
-    const deltaX = mouseX - centerX;
-    const deltaY = mouseY - centerY;
-    const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-
-    const maxDistance = 200; // radius of effect (increased)
-    const maxOffset = 60; // maximum pixels to move (increased for exaggeration)
-
-    if (distance < maxDistance && distance > 0) {
-      const randomness = getLetterRandomness(idx);
-
-      // Use a stronger exponential force curve for more dramatic effect
-      const normalizedDistance = distance / maxDistance;
-      const force = Math.pow(1 - normalizedDistance, 2); // quadratic falloff
-
-      // Calculate base angle away from cursor
-      const angle = Math.atan2(-deltaY, -deltaX);
-
-      // Add random angle offset for variation
-      const randomAngle = angle + randomness.angleOffset;
-
-      // Apply random strength multiplier
-      const randomForce = force * maxOffset * randomness.strength;
-
-      const offsetX = Math.cos(randomAngle) * randomForce;
-      const offsetY = Math.sin(randomAngle) * randomForce;
-
-      return { x: offsetX, y: offsetY };
-    }
-
-    return { x: 0, y: 0 };
-  }, [getLetterRandomness]);
-
-  const updateLetters = useCallback(() => {
-    const { x, y } = mousePos.current;
-    const currentTime = Date.now();
-
-    letterRefs.current.forEach((element, idx) => {
-      if (!element) return;
-
-      const rect = element.getBoundingClientRect();
-      const mouseOffset = calculateMouseOffset(rect, x, y, idx);
-      const idleOffset = calculateIdleOffset(idx, currentTime);
-
-      // Combine both offsets - mouse takes priority, idle adds subtle movement
-      const totalX = mouseOffset.x + idleOffset.x;
-      const totalY = mouseOffset.y + idleOffset.y;
-
-      element.style.transform = `translate(${totalX}px, ${totalY}px)`;
-    });
-
-    // Continue animation loop for idle animation
-    rafId.current = requestAnimationFrame(updateLetters);
-  }, [calculateMouseOffset, calculateIdleOffset]);
+export default function SalesPage() {
+  const [phase, setPhase] = useState(0);
+  // 0: nothing, 1: top hline, 2: vlines, 3: inner hlines, 4: line1, 5: line2, 6: content, 7: dialog
 
   useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      mousePos.current = { x: e.clientX, y: e.clientY };
-    };
-
-    window.addEventListener('mousemove', handleMouseMove);
-
-    // Start the continuous animation loop
-    rafId.current = requestAnimationFrame(updateLetters);
-
-    return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      if (rafId.current) {
-        cancelAnimationFrame(rafId.current);
-      }
-    };
-  }, [updateLetters]);
+    const timers = [
+      setTimeout(() => setPhase(1), HLINE_START),
+      setTimeout(() => setPhase(2), VLINE_START),
+      setTimeout(() => setPhase(3), INNER_HLINES_START),
+      setTimeout(() => setPhase(4), TEXT_LINE1_START),
+      setTimeout(() => setPhase(5), TEXT_LINE2_START),
+      setTimeout(() => setPhase(6), CONTENT_START),
+      setTimeout(() => setPhase(7), DIALOG_START),
+    ];
+    return () => timers.forEach(clearTimeout);
+  }, []);
 
   return (
-    <div ref={containerRef} className="flex min-h-screen items-center justify-center bg-white px-4">
-      <p className="font-serif text-black text-xl text-center max-w-5xl leading-relaxed">
-        {words.map((word, wordIdx) => (
-          <span key={wordIdx} className="inline-block whitespace-nowrap mr-[0.25em]">
-            {word.split('').map((char, charIdx) => {
-              const idx = wordIdx * 100 + charIdx;
-              const randomness = getLetterRandomness(idx);
+    <div className="min-h-screen bg-black text-white" style={{ fontFamily: "'Saans', sans-serif" }}>
+      <style>{`
+        @font-face {
+          font-family: 'PPMondwest';
+          src: url('/fonts/PPMondwest-Regular.otf') format('opentype');
+          font-weight: 400;
+          font-style: normal;
+          font-display: swap;
+        }
+        @font-face {
+          font-family: 'Saans';
+          src: url('/fonts/SaansCollectionVF-TRIAL.ttf') format('truetype');
+          font-weight: 300 900;
+          font-style: normal;
+          font-display: swap;
+        }
+        @keyframes march-h {
+          to { stroke-dashoffset: -10; }
+        }
+        @keyframes march-v {
+          to { stroke-dashoffset: -10; }
+        }
+        .animate-march-h {
+          animation: march-h 0.5s linear infinite;
+        }
+        .animate-march-v {
+          animation: march-v 0.5s linear infinite;
+        }
+        @keyframes weight-breathe {
+          from { font-variation-settings: "wght" 300; }
+          to { font-variation-settings: "wght" 900; }
+        }
+        .animate-weight {
+          font-variation-settings: "wght" 300;
+        }
+        .animate-weight.active {
+          animation: weight-breathe 4s ease-in-out 0.3s forwards;
+        }
+        .retro-btn {
+          transition: transform 0.15s ease, box-shadow 0.15s ease;
+        }
+        .retro-btn:hover {
+          transform: translate(-1px, -1px);
+          box-shadow: inset 2px 2px 0px #fff, inset -2px -2px 0px #808080, 3px 3px 0px rgba(0,0,0,0.7) !important;
+        }
+        .retro-btn-sm {
+          transition: transform 0.15s ease, box-shadow 0.15s ease;
+        }
+        .retro-btn-sm:hover {
+          transform: translate(-1px, -1px);
+          box-shadow: inset 1px 1px 0px #fff, inset -1px -1px 0px #808080, 2px 2px 0px rgba(0,0,0,0.5) !important;
+        }
+        @keyframes marquee {
+          from { transform: translateX(0); }
+          to { transform: translateX(-50%); }
+        }
+        .animate-marquee {
+          animation: marquee 20s linear infinite;
+        }
 
-              return (
-                <span
-                  key={charIdx}
-                  ref={(el) => {
-                    if (el) {
-                      letterRefs.current.set(idx, el);
-                    } else {
-                      letterRefs.current.delete(idx);
-                    }
-                  }}
-                  className="inline-block"
+        /* Entry animations */
+        @keyframes draw-h {
+          from { clip-path: inset(0 100% 0 0); }
+          to { clip-path: inset(0 0 0 0); }
+        }
+        @keyframes draw-v {
+          from { clip-path: inset(0 0 100% 0); }
+          to { clip-path: inset(0 0 0 0); }
+        }
+        @keyframes fade-in {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        @keyframes bounce-in {
+          0% { opacity: 0; transform: scale(0.85) translateY(20px) rotate(0deg); }
+          60% { opacity: 1; transform: scale(1.02) translateY(-3px) rotate(3deg); }
+          80% { transform: scale(0.99) translateY(1px) rotate(1.5deg); }
+          100% { opacity: 1; transform: scale(1) translateY(0) rotate(2deg); }
+        }
+        .draw-h {
+          clip-path: inset(0 100% 0 0);
+        }
+        .draw-h.active {
+          animation: draw-h 0.3s ease-out forwards;
+        }
+        .draw-v {
+          clip-path: inset(0 0 100% 0);
+        }
+        .draw-v.active {
+          animation: draw-v 0.3s ease-out forwards;
+        }
+        @keyframes weight-reveal-light {
+          from { opacity: 0; font-variation-settings: "wght" 100; }
+          to { opacity: 1; font-variation-settings: "wght" 400; }
+        }
+        @keyframes weight-reveal-heavy {
+          from { opacity: 0; font-variation-settings: "wght" 100; }
+          to { opacity: 1; font-variation-settings: "wght" 700; }
+        }
+        .weight-reveal-light {
+          opacity: 0;
+          font-variation-settings: "wght" 100;
+        }
+        .weight-reveal-light.active {
+          animation: weight-reveal-light 1s ease-out forwards;
+        }
+        .weight-reveal-heavy {
+          opacity: 0;
+          font-variation-settings: "wght" 100;
+        }
+        .weight-reveal-heavy.active {
+          animation: weight-reveal-heavy 1s ease-out forwards;
+        }
+        .fade-in {
+          opacity: 0;
+        }
+        .fade-in.active {
+          animation: fade-in 0.5s ease-out forwards;
+        }
+        .bounce-in {
+          opacity: 0;
+        }
+        .bounce-in.active {
+          animation: bounce-in 0.5s ease-out forwards;
+        }
+      `}</style>
+
+      {/* Marquee Banner */}
+      <div className="w-full bg-white overflow-hidden py-3.5">
+        <div className="animate-marquee whitespace-nowrap flex">
+          {[...Array(8)].map((_, i) => (
+            <span key={i} className="text-black text-xs md:text-base font-mono mx-6 md:mx-8">
+              Gas is a first of its kind advertising agency architected with agentic AI at its core.
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* Spacer above hero */}
+      <div className="h-20 md:h-28" />
+
+      {/* Full-width dashed top stroke */}
+      <div className={`draw-h ${phase >= 1 ? "active" : ""}`}>
+        <MarchingHLine />
+      </div>
+
+      {/* Hero Section with dashed left/right borders */}
+      <section className="relative max-w-6xl mx-auto">
+        <MarchingVLine side="left" className={`draw-v ${phase >= 2 ? "active" : ""}`} />
+        <MarchingVLine side="right" className={`draw-v ${phase >= 2 ? "active" : ""}`} />
+
+        <div className="pt-12 pb-12 px-6 md:pt-24 md:px-16 lg:px-24">
+          <h1 className="text-4xl md:text-6xl lg:text-7xl leading-tight tracking-tight text-white">
+            <span className={`weight-reveal-light ${phase >= 4 ? "active" : ""} inline-block`}>
+              Ad Campaigns that
+            </span>
+            <br />
+            <span className={`weight-reveal-heavy ${phase >= 5 ? "active" : ""} inline-block`}>
+              Improve Themselves
+            </span>
+          </h1>
+          <div className={`fade-in ${phase >= 6 ? "active" : ""}`}>
+            <p className="mt-8 text-base md:text-xl text-neutral-300">
+              We help businesses 10x creative output and{" "}
+              <strong className="text-white font-semibold">profitably</strong>{" "}
+              scale with AI systems.
+            </p>
+          </div>
+        </div>
+
+        <div className={`draw-h ${phase >= 3 ? "active" : ""}`}>
+          <MarchingHLine />
+        </div>
+
+        {/* Logo Row */}
+        <div className={`fade-in ${phase >= 6 ? "active" : ""}`}>
+          <div className="py-8 px-6 md:py-10 md:px-16 lg:px-24 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <p className="text-xs md:text-sm text-neutral-500">
+              Built by marketers and engineers from
+            </p>
+            <div className="flex items-center gap-6 md:gap-8">
+              <img src="/logos/image 41.png" alt="Spark" className="h-4 md:h-5 opacity-70" />
+              <img src="/logos/image 42.png" alt="Y Combinator" className="h-4 md:h-5 opacity-70" />
+              <img src="/logos/image 43.png" alt="Ramp" className="h-4 md:h-5 opacity-70" />
+              <img src="/logos/image 40.png" alt="Apple" className="h-5 md:h-6 opacity-70" />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Full-width dashed bottom stroke */}
+      <div className={`draw-h ${phase >= 3 ? "active" : ""}`}>
+        <MarchingHLine />
+      </div>
+
+      {/* TODO: Pill Badges - More Creatives, Better Performance, Faster Iteration */}
+
+      {/* Retro Dialog Box - overlaps hero content */}
+      <div className="fixed inset-0 z-30 flex items-center justify-center pointer-events-none pt-[10vh] md:pt-[35vh]">
+        <div className={`bounce-in ${phase >= 7 ? "active" : ""} max-w-md w-full px-4 md:px-6 pointer-events-auto`}>
+        <div
+          className="relative"
+          style={{
+            background: '#D9D9D9',
+            boxShadow: '4px 4px 0px rgba(0,0,0,0.3)',
+          }}
+        >
+          {/* Inner shadow overlay - sits on top of everything */}
+          <div
+            className="absolute inset-0 z-20 pointer-events-none"
+            style={{
+              boxShadow: 'inset 6px 6px 0px #fff, inset -6px -6px 0px #808080',
+            }}
+          />
+
+          {/* Content inside the bevel */}
+          <div className="p-[6px]">
+            {/* Title Bar */}
+            <div className="flex items-center justify-between px-2 py-1.5 md:px-3 md:py-2" style={{ background: '#0D2395' }}>
+              <span className="text-white font-normal tracking-wide md:tracking-widest uppercase font-mono text-[10px] md:text-[13px]">
+                Stuck in the Stone Age?
+              </span>
+              <div className="flex gap-1 md:gap-1.5">
+                <button
+                  className="retro-btn-sm w-5 h-5 md:w-7 md:h-7 flex items-center justify-center text-black text-[10px] md:text-sm font-bold leading-none"
                   style={{
-                    transition: `transform ${randomness.duration}s cubic-bezier(0.34, 1.56, 0.64, 1)`,
+                    background: '#C0C0C0',
+                    boxShadow: 'inset 1px 1px 0px #fff, inset -1px -1px 0px #808080',
                   }}
                 >
-                  {char}
-                </span>
-              );
-            })}
-          </span>
-        ))}
-      </p>
+                  ‒
+                </button>
+                <button
+                  className="retro-btn-sm w-5 h-5 md:w-7 md:h-7 flex items-center justify-center text-black text-[10px] md:text-sm font-bold leading-none"
+                  style={{
+                    background: '#C0C0C0',
+                    boxShadow: 'inset 1px 1px 0px #fff, inset -1px -1px 0px #808080',
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            {/* Body */}
+            <div className="relative flex items-center justify-between overflow-hidden">
+              <div className="p-5 md:p-8 relative z-10" style={{ fontFamily: "'PPMondwest', serif" }}>
+                <h2 className="text-black tracking-tight uppercase whitespace-nowrap text-lg md:text-[22px]">
+                  Come with us!
+                </h2>
+
+                <div className="mt-4 md:mt-6">
+                  <button
+                    className="retro-btn px-3 py-1.5 md:px-5 md:py-2 text-black uppercase tracking-tight text-sm md:text-[16px]"
+                    style={{
+                      fontFamily: "'PPMondwest', serif",
+                      background: '#D9D9D9',
+                      boxShadow: 'inset 2px 2px 0px #fff, inset -2px -2px 0px #808080, 2px 2px 0px rgba(0,0,0,0.7)',
+                    }}
+                  >
+                    Join Waitlist
+                  </button>
+                </div>
+              </div>
+
+              <img
+                src="/images/hand.png"
+                alt="Hand reaching out"
+                className="object-contain mr-[-6px] h-[80px] md:h-[120px]"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+      </div>
+
+      {/* Bottom spacer */}
+      <div className="h-40" />
     </div>
   );
 }
