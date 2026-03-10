@@ -1,694 +1,778 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useRef, useCallback } from "react";
 
-/* ───── mock data ───── */
+/* ───── data types ───── */
 
-interface AdMetric {
+interface Creative {
   id: string;
   name: string;
+  format: string;
   status: "active" | "paused" | "learning";
   spend: number;
-  impressions: number;
-  clicks: number;
   conversions: number;
   cpa: number;
   roas: number;
-  ctr: number;
   frequency: number;
-  sparkline: number[]; // 14 days of spend
-  convSparkline: number[]; // 14 days of conversions
-  trend: "up" | "down" | "flat";
-  fatigue: number; // 0-100
-  daysSinceCreative: number;
+  fatigue: number;
+  daily: number[];
 }
 
-const generateSparkline = (base: number, volatility: number, trend: number, len = 14): number[] => {
-  const data: number[] = [];
-  let val = base;
-  for (let i = 0; i < len; i++) {
-    val += (Math.random() - 0.5) * volatility + trend;
-    data.push(Math.max(0, Math.round(val * 100) / 100));
+interface AdSet {
+  id: string;
+  name: string;
+  targeting: string;
+  spend: number;
+  cpa: number;
+  roas: number;
+  creatives: Creative[];
+}
+
+interface Campaign {
+  id: string;
+  name: string;
+  objective: string;
+  status: "active" | "paused";
+  spend: number;
+  cpa: number;
+  roas: number;
+  adSets: AdSet[];
+}
+
+/* ───── mock data ───── */
+
+const spark = (base: number, vol: number, drift: number, n = 14): number[] => {
+  const d: number[] = [];
+  let v = base;
+  for (let i = 0; i < n; i++) {
+    v += (Math.random() - 0.5) * vol + drift;
+    d.push(Math.max(0, Math.round(v)));
   }
-  return data;
+  return d;
 };
 
-const ADS: AdMetric[] = [
+const CAMPAIGNS: Campaign[] = [
   {
-    id: "ad1", name: "Morning Routine Stack — UGC 30s", status: "active",
-    spend: 4280, impressions: 892000, clicks: 18400, conversions: 312,
-    cpa: 13.72, roas: 4.2, ctr: 2.06, frequency: 3.8, fatigue: 72,
-    daysSinceCreative: 21,
-    trend: "down",
-    sparkline: generateSparkline(320, 40, -5),
-    convSparkline: generateSparkline(28, 6, -1.2),
+    id: "c1", name: "AG1 — Prospecting", objective: "Conversions", status: "active",
+    spend: 15890, cpa: 13.21, roas: 4.5,
+    adSets: [
+      {
+        id: "as1", name: "Health-conscious 25–34", targeting: "Interest: wellness, fitness, supplements", spend: 8420, cpa: 12.80, roas: 4.8,
+        creatives: [
+          { id: "cr1", name: "Morning Routine Stack", format: "UGC · 30s", status: "active", spend: 4280, conversions: 312, cpa: 13.72, roas: 4.2, frequency: 3.8, fatigue: 72, daily: spark(320, 40, -5) },
+          { id: "cr2", name: "Gut Health Explainer", format: "Motion · 45s", status: "active", spend: 3150, conversions: 245, cpa: 12.86, roas: 4.8, frequency: 2.1, fatigue: 28, daily: spark(180, 30, 8) },
+          { id: "cr3", name: "Fridge Restock ASMR", format: "UGC · 20s", status: "learning", spend: 680, conversions: 38, cpa: 17.89, roas: 2.8, frequency: 1.2, fatigue: 5, daily: spark(40, 15, 6) },
+        ],
+      },
+      {
+        id: "as2", name: "Supplement stackers 30–45", targeting: "Interest: biohacking, supplement reviews", spend: 7470, cpa: 13.68, roas: 4.2,
+        creatives: [
+          { id: "cr4", name: "75 Supplements → 1 Scoop", format: "Side-by-Side · 20s", status: "active", spend: 5620, conversions: 428, cpa: 13.13, roas: 4.5, frequency: 4.2, fatigue: 81, daily: spark(420, 50, -8) },
+          { id: "cr5", name: "Travel Pack ASMR", format: "Macro · 15s", status: "paused", spend: 1890, conversions: 86, cpa: 21.98, roas: 2.1, frequency: 5.1, fatigue: 94, daily: spark(180, 20, -12) },
+        ],
+      },
+    ],
   },
   {
-    id: "ad2", name: "Gut Health Explainer — Motion 45s", status: "active",
-    spend: 3150, impressions: 654000, clicks: 11200, conversions: 245,
-    cpa: 12.86, roas: 4.8, ctr: 1.71, frequency: 2.1, fatigue: 28,
-    daysSinceCreative: 7,
-    trend: "up",
-    sparkline: generateSparkline(180, 30, 8),
-    convSparkline: generateSparkline(12, 4, 1.5),
+    id: "c2", name: "AG1 — Retargeting", objective: "Conversions", status: "active",
+    spend: 5050, cpa: 11.84, roas: 5.4,
+    adSets: [
+      {
+        id: "as3", name: "Site visitors 7d", targeting: "Website visitors, last 7 days", spend: 2840, cpa: 11.20, roas: 5.6,
+        creatives: [
+          { id: "cr6", name: "Doctor Reacts to Ingredients", format: "Talking Head · 12m", status: "active", spend: 2840, conversions: 198, cpa: 14.34, roas: 3.9, frequency: 1.6, fatigue: 15, daily: spark(140, 25, 12) },
+        ],
+      },
+      {
+        id: "as4", name: "Cart abandoners 14d", targeting: "Add to cart, no purchase, 14 days", spend: 2210, cpa: 12.42, roas: 5.3,
+        creatives: [
+          { id: "cr7", name: "Marathon Runner's Secret", format: "Doc · 60s", status: "active", spend: 2210, conversions: 178, cpa: 12.42, roas: 5.3, frequency: 2.4, fatigue: 35, daily: spark(130, 20, 4) },
+        ],
+      },
+    ],
   },
   {
-    id: "ad3", name: "75 Supplements → 1 Scoop — Side-by-Side", status: "active",
-    spend: 5620, impressions: 1240000, clicks: 24800, conversions: 428,
-    cpa: 13.13, roas: 4.5, ctr: 2.0, frequency: 4.2, fatigue: 81,
-    daysSinceCreative: 28,
-    trend: "down",
-    sparkline: generateSparkline(420, 50, -8),
-    convSparkline: generateSparkline(38, 8, -2),
+    id: "c3", name: "AG1 — Brand Awareness", objective: "Reach", status: "active",
+    spend: 3680, cpa: 12.73, roas: 5.1,
+    adSets: [
+      {
+        id: "as5", name: "Broad 18–55", targeting: "Broad, US, 18–55", spend: 3680, cpa: 12.73, roas: 5.1,
+        creatives: [
+          { id: "cr8", name: "30-Day Challenge Results", format: "Documentary · 90s", status: "active", spend: 3680, conversions: 289, cpa: 12.73, roas: 5.1, frequency: 2.8, fatigue: 42, daily: spark(260, 20, 0) },
+        ],
+      },
+    ],
   },
   {
-    id: "ad4", name: "Doctor Reacts — Talking Head 12min", status: "active",
-    spend: 2840, impressions: 412000, clicks: 8900, conversions: 198,
-    cpa: 14.34, roas: 3.9, ctr: 2.16, frequency: 1.6, fatigue: 15,
-    daysSinceCreative: 4,
-    trend: "up",
-    sparkline: generateSparkline(140, 25, 12),
-    convSparkline: generateSparkline(8, 3, 2),
-  },
-  {
-    id: "ad5", name: "Travel Pack ASMR — Macro 15s", status: "paused",
-    spend: 1890, impressions: 328000, clicks: 4920, conversions: 86,
-    cpa: 21.98, roas: 2.1, ctr: 1.5, frequency: 5.1, fatigue: 94,
-    daysSinceCreative: 35,
-    trend: "down",
-    sparkline: generateSparkline(180, 20, -12),
-    convSparkline: generateSparkline(10, 3, -2),
-  },
-  {
-    id: "ad6", name: "30-Day Challenge — Documentary 90s", status: "active",
-    spend: 3680, impressions: 780000, clicks: 15600, conversions: 289,
-    cpa: 12.73, roas: 5.1, ctr: 2.0, frequency: 2.8, fatigue: 42,
-    daysSinceCreative: 14,
-    trend: "flat",
-    sparkline: generateSparkline(260, 20, 0),
-    convSparkline: generateSparkline(20, 4, 0.2),
-  },
-  {
-    id: "ad7", name: "Fridge Restock ASMR — UGC 20s", status: "learning",
-    spend: 680, impressions: 124000, clicks: 2100, conversions: 38,
-    cpa: 17.89, roas: 2.8, ctr: 1.69, frequency: 1.2, fatigue: 5,
-    daysSinceCreative: 2,
-    trend: "up",
-    sparkline: generateSparkline(40, 15, 6),
-    convSparkline: generateSparkline(2, 2, 1),
-  },
-  {
-    id: "ad8", name: "Marathon Runner's Secret — Doc 60s", status: "active",
-    spend: 2210, impressions: 489000, clicks: 9300, conversions: 178,
-    cpa: 12.42, roas: 5.3, ctr: 1.9, frequency: 2.4, fatigue: 35,
-    daysSinceCreative: 11,
-    trend: "up",
-    sparkline: generateSparkline(130, 20, 4),
-    convSparkline: generateSparkline(10, 3, 1),
+    id: "c4", name: "AG1 — TikTok Testing", objective: "Conversions", status: "paused",
+    spend: 1240, cpa: 18.50, roas: 2.4,
+    adSets: [
+      {
+        id: "as6", name: "TikTok wellness 18–30", targeting: "Wellness, health, fitness creators", spend: 740, cpa: 16.20, roas: 2.8,
+        creatives: [
+          { id: "cr9", name: "What Happens Inside Your Body", format: "Motion · 30s", status: "paused", spend: 420, conversions: 22, cpa: 19.09, roas: 2.2, frequency: 1.8, fatigue: 12, daily: spark(30, 10, -2) },
+          { id: "cr10", name: "Nutritionist Roasts My Diet", format: "Collab · 45s", status: "paused", spend: 320, conversions: 18, cpa: 17.78, roas: 2.5, frequency: 1.4, fatigue: 8, daily: spark(24, 8, -1) },
+        ],
+      },
+      {
+        id: "as7", name: "TikTok ASMR enthusiasts", targeting: "ASMR, oddly satisfying", spend: 500, cpa: 21.30, roas: 1.9,
+        creatives: [
+          { id: "cr11", name: "Unboxing the Science", format: "Unboxing · 20s", status: "paused", spend: 500, conversions: 24, cpa: 20.83, roas: 2.0, frequency: 2.2, fatigue: 18, daily: spark(38, 12, -3) },
+        ],
+      },
+    ],
   },
 ];
 
-// Daily spend/conv data for the main chart (last 30 days)
-const DAILY_DATA = Array.from({ length: 30 }, (_, i) => {
+const ACCOUNT_DAILY = Array.from({ length: 30 }, (_, i) => {
   const base = 1800 + Math.sin(i / 4) * 400;
-  const weekend = (i % 7 === 5 || i % 7 === 6) ? 0.75 : 1;
-  const spend = Math.round((base + (Math.random() - 0.5) * 300) * weekend);
-  const convRate = 0.018 + Math.random() * 0.008 + (i > 20 ? -0.003 : 0);
-  const conversions = Math.round(spend * convRate / 12);
-  return {
-    day: i + 1,
-    date: `Feb ${i + 1}`,
-    spend,
-    conversions,
-    cpa: Math.round((spend / Math.max(conversions, 1)) * 100) / 100,
-    roas: Math.round((conversions * 58 / Math.max(spend, 1)) * 10) / 10,
-  };
+  const wknd = (i % 7 === 5 || i % 7 === 6) ? 0.75 : 1;
+  const spend = Math.round((base + (Math.random() - 0.5) * 300) * wknd);
+  const conv = Math.round(spend * (0.018 + Math.random() * 0.008 + (i > 20 ? -0.003 : 0)) / 12);
+  const d = new Date(2026, 1, i + 1);
+  return { spend, conv, label: `${d.toLocaleString("en", { month: "short" })} ${d.getDate()}` };
 });
 
-/* ───── AI Analysis messages ───── */
+/* ───── analysis content ───── */
 
-const ANALYSIS_SEGMENTS = [
-  { type: "header" as const, text: "Account Health Overview" },
-  { type: "body" as const, text: "Scanning 8 active creatives across Meta and TikTok. Total 30-day spend: $24,350. Blended ROAS: 4.1x. Account is performing above target but showing signs of creative fatigue on top spenders." },
-  { type: "header" as const, text: "Creative Fatigue Alert" },
-  { type: "body" as const, text: "\"75 Supplements → 1 Scoop\" has a fatigue score of 81/100. Frequency has hit 4.2x — well above the 3.0x threshold. CTR has declined 34% over the past 7 days. Recommend pausing this creative and rotating in a fresh variant." },
-  { type: "body" as const, text: "\"Morning Routine Stack\" is also deteriorating. Fatigue at 72/100, frequency 3.8x. CPA has risen from $11.40 to $13.72 in 14 days. This was your top performer — prioritize 2-3 new UGC angles to replace it." },
-  { type: "body" as const, text: "\"Travel Pack ASMR\" is already paused at 94/100 fatigue. Good call — this creative was fully exhausted." },
-  { type: "header" as const, text: "Top Performers to Scale" },
-  { type: "body" as const, text: "\"Doctor Reacts\" is only 4 days old with a $14.34 CPA and climbing conversion volume. Frequency is just 1.6x. Recommend increasing daily budget by 20-30% — this creative has significant runway." },
-  { type: "body" as const, text: "\"Marathon Runner's Secret\" is quietly strong: $12.42 CPA, 5.3x ROAS, only 11 days in. Low fatigue at 35/100. This is your most efficient spend right now." },
-  { type: "header" as const, text: "Weekend Spend Strategy" },
-  { type: "body" as const, text: "It's Sunday. Historical data shows your CPAs rise 15-22% on weekends due to lower purchase intent. Recommend reducing spend by 20% today and Monday, then scaling back up Tuesday when conversion rates normalize." },
-  { type: "body" as const, text: "Exception: \"Fridge Restock ASMR\" is still in learning phase (2 days). Keep this one steady — Meta's algorithm needs consistent data to optimize." },
-  { type: "header" as const, text: "Iteration Recommendations" },
-  { type: "body" as const, text: "Queue up new angles for your fatigued creatives. Specifically: test a creator-swap on \"Morning Routine Stack\" (same script, different face), and try a shorter 15s cut of \"75 Supplements\" focusing only on the price comparison moment." },
-  { type: "body" as const, text: "The \"Gut Health Explainer\" motion graphics style is resonating (4.8x ROAS, low fatigue). Consider producing 2 more educational motion pieces — perhaps ingredient deep-dives or \"what happens in your body\" angles." },
-  { type: "header" as const, text: "Summary" },
-  { type: "body" as const, text: "Action items: (1) Pause \"75 Supplements\" creative, (2) Scale \"Doctor Reacts\" +25%, (3) Cut weekend budgets 20%, (4) Queue 3 new creatives to replace fatigued units. Projected impact: -8% spend, +12% conversions over next 7 days." },
+interface AnalysisBlock {
+  type: "heading" | "paragraph" | "action";
+  text: string;
+}
+
+const ANALYSIS: AnalysisBlock[] = [
+  { type: "heading", text: "Account health" },
+  { type: "paragraph", text: "8 creatives running across Meta and TikTok. 30-day spend is $24.3k at a blended 4.1x ROAS — above the 4.0x target. But two of the top three spenders are showing fatigue, and efficiency is declining week-over-week." },
+  { type: "heading", text: "Fatigue" },
+  { type: "paragraph", text: "\"75 Supplements → 1 Scoop\" is your biggest problem. Frequency has hit 4.2x, CTR dropped 34% in seven days, and it's been running unchanged for 28 days. It's still converting, but CPA is rising fast — you're buying diminishing returns." },
+  { type: "paragraph", text: "\"Morning Routine Stack\" is close behind. Was your best performer two weeks ago at $11.40 CPA. Now $13.72 and climbing. Frequency 3.8x. This creative is entering its final useful days." },
+  { type: "paragraph", text: "\"Travel Pack ASMR\" was correctly paused — 94/100 fatigue, fully exhausted." },
+  { type: "heading", text: "What to scale" },
+  { type: "paragraph", text: "\"Marathon Runner's Secret\" is your most efficient active creative — $12.42 CPA, 5.3x ROAS, and only at 35/100 fatigue after 11 days. It has room to grow. Increase budget 25–30%." },
+  { type: "paragraph", text: "\"Doctor Reacts\" is 4 days in with low frequency and climbing volume. Early signal is strong. Don't touch the budget yet — let Meta optimize through learning, then scale next week." },
+  { type: "paragraph", text: "\"Gut Health Explainer\" is your sleeper. 4.8x ROAS, low fatigue, and the motion graphics format seems to be resonating in a way your UGC isn't right now. Worth building more around this style." },
+  { type: "heading", text: "Weekend strategy" },
+  { type: "paragraph", text: "CPAs historically rise 15–22% on weekends for this account. Reduce overall spend 20% through Monday, then restore Tuesday. Exception: keep \"Fridge Restock ASMR\" steady — it's still in learning and needs consistent signal." },
+  { type: "heading", text: "Recommended actions" },
+  { type: "action", text: "Pause \"75 Supplements → 1 Scoop\" — fatigue is too high to justify continued spend" },
+  { type: "action", text: "Scale \"Marathon Runner's Secret\" budget +25%" },
+  { type: "action", text: "Reduce weekend budgets 20% across non-learning campaigns" },
+  { type: "action", text: "Queue 2–3 new creatives: creator-swap on Morning Routine, shorter cut of 75 Supplements, and another motion graphics piece" },
+  { type: "paragraph", text: "Projected impact: –8% spend, +12% conversions over the next 7 days." },
 ];
 
-/* ───── SVG chart components ───── */
+/* ───── sparkline ───── */
 
-function SpendChart({ data }: { data: typeof DAILY_DATA }) {
-  const maxSpend = Math.max(...data.map((d) => d.spend));
-  const maxConv = Math.max(...data.map((d) => d.conversions));
-  const w = 720;
-  const h = 200;
-  const pad = { top: 20, right: 40, bottom: 30, left: 50 };
-  const cw = w - pad.left - pad.right;
-  const ch = h - pad.top - pad.bottom;
+function Spark({ data, w = 56, h = 20 }: { data: number[]; w?: number; h?: number }) {
+  const mn = Math.min(...data);
+  const mx = Math.max(...data);
+  const rng = mx - mn || 1;
+  const pts = data.map((v, i) => {
+    const x = (i / (data.length - 1)) * w;
+    const y = h - 1 - ((v - mn) / rng) * (h - 2);
+    return `${x},${y}`;
+  });
+  const up = data[data.length - 1] > data[0];
+  return (
+    <svg width={w} height={h} className="block flex-shrink-0">
+      <polyline points={pts.join(" ")} fill="none" stroke={up ? "#4ade80" : "#f87171"} strokeWidth={1.5} strokeLinejoin="round" />
+    </svg>
+  );
+}
 
-  const xScale = (i: number) => pad.left + (i / (data.length - 1)) * cw;
-  const ySpend = (v: number) => pad.top + ch - (v / maxSpend) * ch;
-  const yConv = (v: number) => pad.top + ch - (v / maxConv) * ch;
+/* ───── interactive chart ───── */
 
-  const spendPath = data.map((d, i) => `${i === 0 ? "M" : "L"}${xScale(i)},${ySpend(d.spend)}`).join(" ");
-  const convPath = data.map((d, i) => `${i === 0 ? "M" : "L"}${xScale(i)},${yConv(d.conversions)}`).join(" ");
-  const areaPath = spendPath + ` L${xScale(data.length - 1)},${pad.top + ch} L${xScale(0)},${pad.top + ch} Z`;
+function AccountChart({ data }: { data: { spend: number; conv: number; label: string }[] }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
 
-  const yTicks = [0, 0.25, 0.5, 0.75, 1];
+  const w = 600;
+  const h = 180;
+  const py = 8;
+  const ch = h - py * 2;
+  const maxSpend = Math.max(...data.map(d => d.spend));
+  const maxConv = Math.max(...data.map(d => d.conv));
+  const barW = w / data.length;
+
+  const convY = (conv: number) => py + ch - (conv / maxConv) * ch;
+
+  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (!containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const pct = x / rect.width;
+    const idx = Math.min(Math.max(Math.round(pct * (data.length - 1)), 0), data.length - 1);
+    setHoverIdx(idx);
+  }, [data.length]);
+
+  const hoverData = hoverIdx !== null ? data[hoverIdx] : null;
+  const hoverX = hoverIdx !== null ? (hoverIdx / (data.length - 1)) * 100 : 0;
 
   return (
-    <svg viewBox={`0 0 ${w} ${h}`} className="w-full" style={{ maxHeight: 220 }}>
-      {/* grid */}
-      {yTicks.map((t) => (
-        <line
-          key={t}
-          x1={pad.left}
-          x2={w - pad.right}
-          y1={pad.top + ch * (1 - t)}
-          y2={pad.top + ch * (1 - t)}
-          stroke="rgba(255,255,255,0.06)"
-          strokeWidth={1}
-        />
-      ))}
-      {/* y-axis labels spend */}
-      {yTicks.map((t) => (
-        <text
-          key={`ys-${t}`}
-          x={pad.left - 6}
-          y={pad.top + ch * (1 - t) + 4}
-          textAnchor="end"
-          fill="rgba(255,255,255,0.3)"
-          fontSize={9}
-          fontFamily="var(--font-geist-mono)"
-        >
-          ${Math.round(maxSpend * t / 1000)}k
-        </text>
-      ))}
-      {/* y-axis labels conv */}
-      {yTicks.map((t) => (
-        <text
-          key={`yc-${t}`}
-          x={w - pad.right + 6}
-          y={pad.top + ch * (1 - t) + 4}
-          textAnchor="start"
-          fill="rgba(52,211,153,0.4)"
-          fontSize={9}
-          fontFamily="var(--font-geist-mono)"
-        >
-          {Math.round(maxConv * t)}
-        </text>
-      ))}
-      {/* x-axis */}
-      {data.filter((_, i) => i % 5 === 0).map((d) => (
-        <text
-          key={d.day}
-          x={xScale(d.day - 1)}
-          y={h - 6}
-          textAnchor="middle"
-          fill="rgba(255,255,255,0.25)"
-          fontSize={9}
-          fontFamily="var(--font-geist-mono)"
-        >
-          {d.date}
-        </text>
-      ))}
-      {/* spend area */}
-      <path d={areaPath} fill="rgba(255,255,255,0.03)" />
-      {/* spend line */}
-      <path d={spendPath} fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth={1.5} />
-      {/* conv line */}
-      <path d={convPath} fill="none" stroke="rgba(52,211,153,0.7)" strokeWidth={1.5} strokeDasharray="4 3" />
-      {/* weekend shading */}
-      {data.map((_, i) => {
-        if (i % 7 === 5 || i % 7 === 6) {
-          const barW = cw / data.length;
+    <div
+      ref={containerRef}
+      className="relative"
+      onMouseMove={handleMouseMove}
+      onMouseLeave={() => setHoverIdx(null)}
+      style={{ cursor: hoverIdx !== null ? "crosshair" : "default" }}
+    >
+      <svg viewBox={`0 0 ${w} ${h}`} className="w-full block" preserveAspectRatio="none" style={{ height: 160 }}>
+        {data.map((d, i) => {
+          const bh = (d.spend / maxSpend) * ch;
+          const x = i * barW + 1;
+          const y = py + ch - bh;
+          const isWeekend = i % 7 === 5 || i % 7 === 6;
+          const isHovered = i === hoverIdx;
           return (
             <rect
-              key={`we-${i}`}
-              x={xScale(i) - barW / 2}
-              y={pad.top}
-              width={barW}
-              height={ch}
-              fill="rgba(255,255,255,0.02)"
+              key={i}
+              x={x}
+              y={y}
+              width={Math.max(barW - 2, 1)}
+              height={bh}
+              fill={isHovered ? "rgba(255,255,255,0.18)" : isWeekend ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.08)"}
+              rx={1}
             />
           );
-        }
-        return null;
-      })}
-    </svg>
-  );
-}
-
-function MiniSparkline({ data, color = "rgba(255,255,255,0.4)", width = 64, height = 20 }: { data: number[]; color?: string; width?: number; height?: number }) {
-  const max = Math.max(...data);
-  const min = Math.min(...data);
-  const range = max - min || 1;
-  const path = data
-    .map((v, i) => {
-      const x = (i / (data.length - 1)) * width;
-      const y = height - ((v - min) / range) * (height - 2) - 1;
-      return `${i === 0 ? "M" : "L"}${x},${y}`;
-    })
-    .join(" ");
-  return (
-    <svg width={width} height={height} className="block">
-      <path d={path} fill="none" stroke={color} strokeWidth={1.2} />
-    </svg>
-  );
-}
-
-function FatigueBar({ value }: { value: number }) {
-  const color = value > 70 ? "rgba(239,68,68,0.8)" : value > 40 ? "rgba(234,179,8,0.7)" : "rgba(52,211,153,0.7)";
-  return (
-    <div className="flex items-center gap-2">
-      <div style={{ width: 48, height: 4, background: "rgba(255,255,255,0.06)", borderRadius: 2 }}>
-        <div style={{ width: `${value}%`, height: "100%", background: color, borderRadius: 2 }} />
-      </div>
-      <span className="font-mono" style={{ fontSize: 10, color }}>{value}</span>
-    </div>
-  );
-}
-
-function CPADistributionChart({ ads }: { ads: AdMetric[] }) {
-  const sorted = [...ads].sort((a, b) => a.cpa - b.cpa);
-  const maxCpa = Math.max(...sorted.map((a) => a.cpa));
-  const barH = 22;
-  const gap = 4;
-  const h = sorted.length * (barH + gap);
-
-  return (
-    <div style={{ height: h }} className="relative w-full">
-      {sorted.map((ad, i) => {
-        const pct = (ad.cpa / maxCpa) * 100;
-        const color = ad.cpa < 13 ? "rgba(52,211,153,0.6)" : ad.cpa < 16 ? "rgba(234,179,8,0.5)" : "rgba(239,68,68,0.5)";
-        return (
-          <div
-            key={ad.id}
-            className="absolute flex items-center gap-2"
-            style={{ top: i * (barH + gap), height: barH, left: 0, right: 0 }}
-          >
-            <div
-              className="font-mono truncate"
-              style={{ fontSize: 10, color: "rgba(255,255,255,0.45)", width: 180, flexShrink: 0 }}
-            >
-              {ad.name.split("—")[0].trim()}
-            </div>
-            <div className="flex-1 relative" style={{ height: 12, background: "rgba(255,255,255,0.03)", borderRadius: 2 }}>
-              <div style={{ width: `${pct}%`, height: "100%", background: color, borderRadius: 2 }} />
-            </div>
-            <span className="font-mono" style={{ fontSize: 10, color: "rgba(255,255,255,0.5)", width: 42, textAlign: "right" }}>
-              ${ad.cpa.toFixed(2)}
-            </span>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function ROASDonut({ ads }: { ads: AdMetric[] }) {
-  const avgRoas = ads.reduce((s, a) => s + a.roas, 0) / ads.length;
-  const r = 38;
-  const stroke = 8;
-  const circumference = 2 * Math.PI * r;
-  const target = 4.0;
-  const pct = Math.min(avgRoas / (target * 1.5), 1);
-  const color = avgRoas >= target ? "rgba(52,211,153,0.8)" : "rgba(234,179,8,0.7)";
-
-  return (
-    <div className="flex flex-col items-center gap-2">
-      <svg width={96} height={96} viewBox="0 0 96 96">
-        <circle cx={48} cy={48} r={r} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth={stroke} />
-        <circle
-          cx={48}
-          cy={48}
-          r={r}
+        })}
+        <polyline
+          points={data.map((d, i) => `${i * barW + barW / 2},${convY(d.conv)}`).join(" ")}
           fill="none"
-          stroke={color}
-          strokeWidth={stroke}
-          strokeDasharray={`${circumference * pct} ${circumference}`}
-          strokeLinecap="round"
-          transform="rotate(-90 48 48)"
+          stroke="white"
+          strokeWidth={1.5}
+          strokeLinejoin="round"
         />
-        <text x={48} y={45} textAnchor="middle" fill="white" fontSize={18} fontFamily="var(--font-geist-mono)" fontWeight={600}>
-          {avgRoas.toFixed(1)}x
-        </text>
-        <text x={48} y={59} textAnchor="middle" fill="rgba(255,255,255,0.35)" fontSize={9} fontFamily="var(--font-geist-mono)">
-          ROAS
-        </text>
+        {hoverIdx !== null && hoverData && (
+          <circle cx={hoverIdx * barW + barW / 2} cy={convY(hoverData.conv)} r={3.5} fill="white" />
+        )}
       </svg>
-      <span className="font-mono" style={{ fontSize: 10, color: "rgba(255,255,255,0.35)" }}>
-        target: {target.toFixed(1)}x
-      </span>
+
+      {hoverIdx !== null && (
+        <div
+          className="absolute top-0 bottom-0 pointer-events-none"
+          style={{ left: `${hoverX}%`, width: 1, background: "rgba(255,255,255,0.15)" }}
+        />
+      )}
+
+      {hoverIdx !== null && hoverData && (
+        <div
+          className="absolute pointer-events-none"
+          style={{
+            top: -6,
+            left: `${hoverX}%`,
+            transform: hoverX > 75 ? "translateX(-100%)" : hoverX < 25 ? "translateX(0)" : "translateX(-50%)",
+            background: "#1a1a1a",
+            border: "1px solid rgba(255,255,255,0.1)",
+            borderRadius: 6,
+            padding: "6px 10px",
+            zIndex: 10,
+          }}
+        >
+          <div style={{ fontSize: 14, color: "rgba(255,255,255,0.6)", fontFamily: "var(--font-geist-mono)", marginBottom: 3 }}>
+            {hoverData.label}
+          </div>
+          <div className="flex items-center gap-4">
+            <span style={{ fontSize: 14, fontFamily: "var(--font-geist-mono)", color: "rgba(255,255,255,0.85)" }}>
+              ${hoverData.spend.toLocaleString()}
+            </span>
+            <span style={{ fontSize: 14, fontFamily: "var(--font-geist-mono)", color: "white" }}>
+              {hoverData.conv} conv
+            </span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-/* ───── Typing animation for AI analysis ───── */
+/* ───── tree components ───── */
 
-function useTypingAnalysis(segments: typeof ANALYSIS_SEGMENTS) {
-  const [displayText, setDisplayText] = useState("");
-  const [currentSegIdx, setCurrentSegIdx] = useState(0);
-  const [currentCharIdx, setCurrentCharIdx] = useState(0);
-  const [isTyping, setIsTyping] = useState(true);
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!isTyping || currentSegIdx >= segments.length) {
-      if (currentSegIdx >= segments.length) setIsTyping(false);
-      return;
-    }
-
-    const seg = segments[currentSegIdx];
-    const fullText = seg.text;
-
-    if (currentCharIdx >= fullText.length) {
-      // Move to next segment after a pause
-      const delay = seg.type === "header" ? 400 : 150;
-      const timer = setTimeout(() => {
-        setCurrentSegIdx((prev) => prev + 1);
-        setCurrentCharIdx(0);
-      }, delay);
-      return () => clearTimeout(timer);
-    }
-
-    // Type characters
-    const speed = seg.type === "header" ? 18 : 8;
-    const timer = setTimeout(() => {
-      setCurrentCharIdx((prev) => prev + 1);
-    }, speed);
-
-    return () => clearTimeout(timer);
-  }, [currentSegIdx, currentCharIdx, isTyping, segments]);
-
-  // Build display text from completed segments + current
-  useEffect(() => {
-    let text = "";
-    for (let i = 0; i < currentSegIdx; i++) {
-      const s = segments[i];
-      if (s.type === "header") {
-        text += `\n▍ ${s.text}\n`;
-      } else {
-        text += `${s.text}\n\n`;
-      }
-    }
-    if (currentSegIdx < segments.length) {
-      const s = segments[currentSegIdx];
-      const partial = s.text.slice(0, currentCharIdx);
-      if (s.type === "header") {
-        text += `\n▍ ${partial}`;
-      } else {
-        text += partial;
-      }
-    }
-    setDisplayText(text);
-  }, [currentSegIdx, currentCharIdx, segments]);
-
-  // Auto-scroll
-  useEffect(() => {
-    if (containerRef.current) {
-      containerRef.current.scrollTop = containerRef.current.scrollHeight;
-    }
-  }, [displayText]);
-
-  return { displayText, isTyping, containerRef };
+function ChevronIcon({ open }: { open: boolean }) {
+  return (
+    <svg
+      width={14}
+      height={14}
+      viewBox="0 0 14 14"
+      className="flex-shrink-0"
+      style={{ transform: open ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 0.15s" }}
+    >
+      <path d="M5 3L9 7L5 11" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
 }
 
-/* ───── Main component ───── */
-
-export default function AnalyzerPage() {
-  const { displayText, isTyping, containerRef } = useTypingAnalysis(ANALYSIS_SEGMENTS);
-  const [selectedAd, setSelectedAd] = useState<string | null>(null);
-
-  const totalSpend = ADS.reduce((s, a) => s + a.spend, 0);
-  const totalConversions = ADS.reduce((s, a) => s + a.conversions, 0);
-  const blendedCPA = totalSpend / totalConversions;
-  const blendedROAS = ADS.reduce((s, a) => s + a.roas * a.spend, 0) / totalSpend;
-  const activeCount = ADS.filter((a) => a.status === "active").length;
+function CreativeRow({ creative, depth, onSelect }: { creative: Creative; depth: number; onSelect: (c: Creative) => void }) {
+  const fatigueColor = creative.fatigue > 70 ? "#f87171" : creative.fatigue > 40 ? "#fbbf24" : "#4ade80";
+  const isPaused = creative.status === "paused";
 
   return (
-    <div className="min-h-screen" style={{ background: "#0a0a0a", fontFamily: "var(--font-geist-sans)" }}>
-      {/* Header */}
-      <header className="flex items-center justify-between px-5 py-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-        <div className="flex items-center gap-3">
-          <div className="font-mono font-semibold text-white" style={{ fontSize: 13, letterSpacing: "0.08em" }}>GAS</div>
-          <span style={{ color: "rgba(255,255,255,0.15)" }}>/</span>
-          <span className="font-mono" style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>ad account analyzer</span>
-        </div>
-        <div className="flex items-center gap-4">
-          <span className="font-mono" style={{ fontSize: 11, color: "rgba(255,255,255,0.3)" }}>AG1 — Meta + TikTok</span>
-          <div
-            className="flex items-center gap-1.5 px-2 py-1 rounded"
-            style={{ background: "rgba(52,211,153,0.08)", border: "1px solid rgba(52,211,153,0.15)" }}
-          >
-            <div style={{ width: 5, height: 5, borderRadius: "50%", background: "rgba(52,211,153,0.8)" }} />
-            <span className="font-mono" style={{ fontSize: 10, color: "rgba(52,211,153,0.7)" }}>Live</span>
-          </div>
-        </div>
-      </header>
+    <div
+      className="flex items-center py-2 group cursor-pointer"
+      style={{
+        paddingLeft: depth * 22 + 6,
+        color: isPaused ? "rgba(255,255,255,0.4)" : "rgba(255,255,255,0.85)",
+      }}
+      onClick={(e) => { e.stopPropagation(); onSelect(creative); }}
+    >
+      <div className="flex items-center gap-2.5 flex-1 min-w-0">
+        <svg width={15} height={15} viewBox="0 0 15 15" className="flex-shrink-0" style={{ opacity: isPaused ? 0.3 : 0.4 }}>
+          <rect x={1.5} y={1} width={12} height={13} rx={2} fill="none" stroke="currentColor" strokeWidth={1.2} />
+          <line x1={4.5} y1={5} x2={10.5} y2={5} stroke="currentColor" strokeWidth={0.9} />
+          <line x1={4.5} y1={8} x2={8.5} y2={8} stroke="currentColor" strokeWidth={0.9} />
+        </svg>
 
-      <div className="max-w-7xl mx-auto px-4 py-5">
-        {/* AI Analysis Box */}
-        <div
-          className="mb-5 rounded-lg overflow-hidden"
-          style={{ border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.02)" }}
-        >
-          <div className="flex items-center justify-between px-4 py-2.5" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-            <div className="flex items-center gap-2">
-              {isTyping && (
-                <div className="flex items-center gap-1">
-                  <div style={{ width: 6, height: 6, borderRadius: "50%", background: "rgba(52,211,153,0.6)" }} className="animate-pulse" />
-                </div>
-              )}
-              <span className="font-mono" style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", letterSpacing: "0.04em" }}>
-                {isTyping ? "Analyzing account..." : "Analysis complete"}
-              </span>
-            </div>
-            <span className="font-mono" style={{ fontSize: 10, color: "rgba(255,255,255,0.2)" }}>
-              Last updated: just now
+        <span className="truncate" style={{ fontSize: 15 }}>{creative.name}</span>
+
+        {creative.status !== "active" && (
+          <span style={{
+            fontSize: 14, fontFamily: "var(--font-geist-mono)", textTransform: "uppercase", letterSpacing: "0.05em",
+            color: creative.status === "learning" ? "rgba(251,191,36,0.8)" : "rgba(255,255,255,0.35)",
+            flexShrink: 0,
+          }}>
+            {creative.status}
+          </span>
+        )}
+      </div>
+
+      <div className="flex" style={{ flexShrink: 0 }}>
+        <span style={{ fontSize: 14, color: "rgba(255,255,255,0.55)", width: 58, textAlign: "right", fontFamily: "var(--font-geist-mono)" }}>
+          ${(creative.spend / 1000).toFixed(1)}k
+        </span>
+
+        <span style={{
+          fontSize: 14, width: 58, textAlign: "right", fontFamily: "var(--font-geist-mono)",
+          color: creative.cpa <= 13 ? "#4ade80" : creative.cpa > 18 ? "#f87171" : "rgba(255,255,255,0.7)",
+        }}>
+          ${creative.cpa.toFixed(2)}
+        </span>
+
+        <span style={{
+          fontSize: 14, width: 46, textAlign: "right", fontFamily: "var(--font-geist-mono)",
+          color: creative.roas >= 4.5 ? "#4ade80" : "rgba(255,255,255,0.6)",
+        }}>
+          {creative.roas.toFixed(1)}x
+        </span>
+
+        {creative.fatigue > 50 ? (
+          <span style={{ fontSize: 14, color: fatigueColor, width: 28, textAlign: "right", fontFamily: "var(--font-geist-mono)", opacity: 0.8 }}>
+            {creative.fatigue}
+          </span>
+        ) : (
+          <span style={{ width: 28 }} />
+        )}
+
+        <div style={{ width: 56, display: "flex", justifyContent: "flex-end" }}>
+          <Spark data={creative.daily} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AdSetNode({ adSet, depth, onSelectCreative }: { adSet: AdSet; depth: number; onSelectCreative: (c: Creative) => void }) {
+  const [open, setOpen] = useState(true);
+
+  return (
+    <div>
+      <div
+        className="flex items-center py-2 cursor-pointer"
+        style={{ paddingLeft: depth * 22 + 6 }}
+        onClick={() => setOpen(!open)}
+      >
+        <div className="flex items-center gap-2.5 flex-1 min-w-0">
+          <span style={{ color: "rgba(255,255,255,0.45)" }}><ChevronIcon open={open} /></span>
+          <svg width={15} height={15} viewBox="0 0 15 15" className="flex-shrink-0" style={{ opacity: 0.35 }}>
+            <path d="M1.5 4C1.5 3.4 1.9 3 2.5 3H5.5L7 4.5H12.5C13.1 4.5 13.5 4.9 13.5 5.5V11.5C13.5 12.1 13.1 12.5 12.5 12.5H2.5C1.9 12.5 1.5 12.1 1.5 11.5V4Z" fill="none" stroke="currentColor" strokeWidth={1.1} />
+          </svg>
+          <span className="truncate" style={{ fontSize: 15, color: "rgba(255,255,255,0.7)" }}>{adSet.name}</span>
+          <span style={{ fontSize: 14, color: "rgba(255,255,255,0.45)", fontFamily: "var(--font-geist-mono)", flexShrink: 0 }}>
+            {adSet.creatives.length} creative{adSet.creatives.length !== 1 ? "s" : ""}
+          </span>
+        </div>
+        <div className="flex" style={{ flexShrink: 0 }}>
+          <span style={{ fontSize: 14, color: "rgba(255,255,255,0.45)", width: 58, textAlign: "right", fontFamily: "var(--font-geist-mono)" }}>
+            ${(adSet.spend / 1000).toFixed(1)}k
+          </span>
+          <span style={{ fontSize: 14, color: "rgba(255,255,255,0.45)", width: 58, textAlign: "right", fontFamily: "var(--font-geist-mono)" }}>
+            ${adSet.cpa.toFixed(2)}
+          </span>
+          <span style={{ fontSize: 14, color: "rgba(255,255,255,0.45)", width: 46, textAlign: "right", fontFamily: "var(--font-geist-mono)" }}>
+            {adSet.roas.toFixed(1)}x
+          </span>
+          <span style={{ width: 84 }} />
+        </div>
+      </div>
+      {open && adSet.creatives.map(cr => (
+        <CreativeRow key={cr.id} creative={cr} depth={depth + 1} onSelect={onSelectCreative} />
+      ))}
+    </div>
+  );
+}
+
+function CampaignNode({ campaign, onSelectCreative }: { campaign: Campaign; onSelectCreative: (c: Creative) => void }) {
+  const [open, setOpen] = useState(true);
+  const isPaused = campaign.status === "paused";
+
+  return (
+    <div style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+      <div
+        className="flex items-center py-3 cursor-pointer px-1"
+        onClick={() => setOpen(!open)}
+      >
+        <div className="flex items-center gap-2.5 flex-1 min-w-0">
+          <span style={{ color: "rgba(255,255,255,0.5)" }}><ChevronIcon open={open} /></span>
+          <span className="truncate" style={{ fontSize: 16, color: isPaused ? "rgba(255,255,255,0.4)" : "rgba(255,255,255,0.95)", fontWeight: 500 }}>
+            {campaign.name}
+          </span>
+          {isPaused && (
+            <span style={{ fontSize: 14, fontFamily: "var(--font-geist-mono)", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.05em", flexShrink: 0 }}>
+              paused
             </span>
-          </div>
-          <div
-            ref={containerRef}
-            className="px-4 py-3 overflow-y-auto font-mono"
-            style={{ maxHeight: 200, fontSize: 12, lineHeight: 1.7, color: "rgba(255,255,255,0.65)", whiteSpace: "pre-wrap" }}
-          >
-            {displayText.split("\n").map((line, i) => {
-              if (line.startsWith("▍ ")) {
-                return (
-                  <div key={i} style={{ color: "rgba(255,255,255,0.9)", fontWeight: 600, marginTop: 8, marginBottom: 4, fontSize: 12 }}>
-                    {line}
-                  </div>
-                );
-              }
-              return <div key={i}>{line || "\u00A0"}</div>;
-            })}
-            {isTyping && (
-              <span className="inline-block" style={{ width: 6, height: 14, background: "rgba(255,255,255,0.5)", marginLeft: 1, animation: "blink 1s step-end infinite" }} />
-            )}
-          </div>
+          )}
+          <span style={{ fontSize: 14, color: "rgba(255,255,255,0.35)", fontFamily: "var(--font-geist-mono)", flexShrink: 0 }}>
+            {campaign.objective}
+          </span>
         </div>
-
-        {/* KPI Row */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
-          {[
-            { label: "Total Spend", value: `$${(totalSpend / 1000).toFixed(1)}k`, sub: "30 days" },
-            { label: "Conversions", value: totalConversions.toLocaleString(), sub: `${activeCount} active ads` },
-            { label: "Blended CPA", value: `$${blendedCPA.toFixed(2)}`, sub: "target: $14.00" },
-            { label: "Blended ROAS", value: `${blendedROAS.toFixed(1)}x`, sub: "target: 4.0x" },
-          ].map((kpi) => (
-            <div
-              key={kpi.label}
-              className="rounded-lg px-4 py-3"
-              style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}
-            >
-              <div className="font-mono" style={{ fontSize: 10, color: "rgba(255,255,255,0.35)", letterSpacing: "0.04em", textTransform: "uppercase" }}>
-                {kpi.label}
-              </div>
-              <div className="font-mono mt-1" style={{ fontSize: 22, color: "white", fontWeight: 600 }}>
-                {kpi.value}
-              </div>
-              <div className="font-mono mt-0.5" style={{ fontSize: 10, color: "rgba(255,255,255,0.25)" }}>
-                {kpi.sub}
-              </div>
-            </div>
+        <div className="flex" style={{ flexShrink: 0 }}>
+          <span style={{ fontSize: 14, color: isPaused ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.7)", width: 58, textAlign: "right", fontFamily: "var(--font-geist-mono)" }}>
+            ${(campaign.spend / 1000).toFixed(1)}k
+          </span>
+          <span style={{ fontSize: 14, color: isPaused ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.7)", width: 58, textAlign: "right", fontFamily: "var(--font-geist-mono)" }}>
+            ${campaign.cpa.toFixed(2)}
+          </span>
+          <span style={{ fontSize: 14, color: isPaused ? "rgba(255,255,255,0.3)" : (campaign.roas >= 4.5 ? "#4ade80" : "rgba(255,255,255,0.7)"), width: 46, textAlign: "right", fontFamily: "var(--font-geist-mono)" }}>
+            {campaign.roas.toFixed(1)}x
+          </span>
+          <span style={{ width: 84 }} />
+        </div>
+      </div>
+      {open && (
+        <div style={{ paddingBottom: 6 }}>
+          {campaign.adSets.map(as => (
+            <AdSetNode key={as.id} adSet={as} depth={1} onSelectCreative={onSelectCreative} />
           ))}
         </div>
+      )}
+    </div>
+  );
+}
 
-        {/* Charts row */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-5">
-          {/* Spend + Conversions Chart */}
-          <div
-            className="lg:col-span-2 rounded-lg overflow-hidden"
-            style={{ border: "1px solid rgba(255,255,255,0.06)", background: "rgba(255,255,255,0.02)" }}
-          >
-            <div className="flex items-center justify-between px-4 py-2.5" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-              <span className="font-mono" style={{ fontSize: 11, color: "rgba(255,255,255,0.5)" }}>Spend & Conversions — 30 days</span>
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-1.5">
-                  <div style={{ width: 12, height: 2, background: "rgba(255,255,255,0.5)" }} />
-                  <span className="font-mono" style={{ fontSize: 9, color: "rgba(255,255,255,0.35)" }}>Spend</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <div style={{ width: 12, height: 2, background: "rgba(52,211,153,0.7)", borderTop: "1px dashed rgba(52,211,153,0.7)" }} />
-                  <span className="font-mono" style={{ fontSize: 9, color: "rgba(52,211,153,0.4)" }}>Conv.</span>
-                </div>
-              </div>
-            </div>
-            <div className="p-4">
-              <SpendChart data={DAILY_DATA} />
+/* ───── creative drawer ───── */
+
+function CreativeDrawer({ creative, onClose }: { creative: Creative; onClose: () => void }) {
+  const fatigueColor = creative.fatigue > 70 ? "#f87171" : creative.fatigue > 40 ? "#fbbf24" : "#4ade80";
+  const statusColor = creative.status === "active" ? "#4ade80" : creative.status === "learning" ? "#fbbf24" : "rgba(255,255,255,0.4)";
+  const daily = creative.daily;
+  const mn = Math.min(...daily);
+  const mx = Math.max(...daily);
+  const avg = Math.round(daily.reduce((a, b) => a + b, 0) / daily.length);
+  const trend = daily[daily.length - 1] - daily[0];
+  const trendPct = daily[0] > 0 ? Math.round((trend / daily[0]) * 100) : 0;
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        className="fixed inset-0 z-40"
+        style={{ background: "rgba(0,0,0,0.5)" }}
+        onClick={onClose}
+      />
+      {/* Drawer */}
+      <div
+        className="fixed top-0 right-0 bottom-0 z-50 overflow-y-auto"
+        style={{
+          width: 420,
+          background: "#111",
+          borderLeft: "1px solid rgba(255,255,255,0.08)",
+          animation: "drawer-in 0.2s ease-out",
+        }}
+      >
+        <style>{`
+          @keyframes drawer-in {
+            from { transform: translateX(100%); }
+            to { transform: translateX(0); }
+          }
+        `}</style>
+
+        {/* Header */}
+        <div className="flex items-start justify-between px-6 pt-6 pb-4" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+          <div className="min-w-0 flex-1">
+            <h2 style={{ fontSize: 18, fontWeight: 600, color: "white", marginBottom: 6 }}>{creative.name}</h2>
+            <div className="flex items-center gap-3">
+              <span style={{ fontSize: 14, color: "rgba(255,255,255,0.5)" }}>{creative.format}</span>
+              <span style={{
+                fontSize: 12, fontFamily: "var(--font-geist-mono)", textTransform: "uppercase", letterSpacing: "0.06em",
+                color: statusColor, background: `${statusColor}15`, padding: "2px 8px", borderRadius: 4,
+              }}>
+                {creative.status}
+              </span>
             </div>
           </div>
+          <button
+            onClick={onClose}
+            className="flex-shrink-0 ml-4 mt-1"
+            style={{ color: "rgba(255,255,255,0.4)", cursor: "pointer", background: "none", border: "none" }}
+          >
+            <svg width={18} height={18} viewBox="0 0 18 18">
+              <path d="M4 4L14 14M14 4L4 14" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" />
+            </svg>
+          </button>
+        </div>
 
-          {/* Right column: ROAS donut + CPA distribution */}
-          <div className="flex flex-col gap-4">
-            <div
-              className="rounded-lg overflow-hidden"
-              style={{ border: "1px solid rgba(255,255,255,0.06)", background: "rgba(255,255,255,0.02)" }}
-            >
-              <div className="px-4 py-2.5" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-                <span className="font-mono" style={{ fontSize: 11, color: "rgba(255,255,255,0.5)" }}>Blended ROAS</span>
+        {/* Metrics grid */}
+        <div className="px-6 py-5" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 20 }}>
+            {[
+              { label: "Spend", value: `$${creative.spend.toLocaleString()}` },
+              { label: "Conversions", value: creative.conversions.toLocaleString() },
+              { label: "CPA", value: `$${creative.cpa.toFixed(2)}`, color: creative.cpa <= 13 ? "#4ade80" : creative.cpa > 18 ? "#f87171" : undefined },
+              { label: "ROAS", value: `${creative.roas.toFixed(1)}x`, color: creative.roas >= 4.5 ? "#4ade80" : undefined },
+              { label: "Frequency", value: creative.frequency.toFixed(1), color: creative.frequency > 3.5 ? "#f87171" : creative.frequency > 2.5 ? "#fbbf24" : undefined },
+              { label: "Fatigue", value: `${creative.fatigue}/100`, color: fatigueColor },
+            ].map(m => (
+              <div key={m.label}>
+                <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", fontFamily: "var(--font-geist-mono)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>
+                  {m.label}
+                </div>
+                <div style={{ fontSize: 20, fontWeight: 600, fontFamily: "var(--font-geist-mono)", color: m.color || "white", letterSpacing: "-0.02em" }}>
+                  {m.value}
+                </div>
               </div>
-              <div className="flex justify-center py-4">
-                <ROASDonut ads={ADS} />
-              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Fatigue bar */}
+        <div className="px-6 py-5" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+          <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", fontFamily: "var(--font-geist-mono)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 10 }}>
+            Creative fatigue
+          </div>
+          <div style={{ height: 6, background: "rgba(255,255,255,0.06)", borderRadius: 3 }}>
+            <div style={{ height: 6, width: `${creative.fatigue}%`, background: fatigueColor, borderRadius: 3, transition: "width 0.3s" }} />
+          </div>
+          <div className="flex justify-between mt-2">
+            <span style={{ fontSize: 13, color: "rgba(255,255,255,0.35)", fontFamily: "var(--font-geist-mono)" }}>Fresh</span>
+            <span style={{ fontSize: 13, color: "rgba(255,255,255,0.35)", fontFamily: "var(--font-geist-mono)" }}>Exhausted</span>
+          </div>
+        </div>
+
+        {/* Daily performance chart */}
+        <div className="px-6 py-5" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+          <div className="flex items-center justify-between mb-3">
+            <span style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", fontFamily: "var(--font-geist-mono)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              Daily conversions
+            </span>
+            <span style={{
+              fontSize: 13, fontFamily: "var(--font-geist-mono)",
+              color: trendPct >= 0 ? "#4ade80" : "#f87171",
+            }}>
+              {trendPct >= 0 ? "+" : ""}{trendPct}%
+            </span>
+          </div>
+          <Spark data={daily} w={372} h={80} />
+          <div className="flex items-center gap-6 mt-3">
+            <div className="flex items-center gap-2">
+              <span style={{ fontSize: 13, color: "rgba(255,255,255,0.35)", fontFamily: "var(--font-geist-mono)" }}>Avg</span>
+              <span style={{ fontSize: 13, color: "rgba(255,255,255,0.7)", fontFamily: "var(--font-geist-mono)" }}>{avg}</span>
             </div>
-
-            <div
-              className="rounded-lg overflow-hidden flex-1"
-              style={{ border: "1px solid rgba(255,255,255,0.06)", background: "rgba(255,255,255,0.02)" }}
-            >
-              <div className="px-4 py-2.5" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-                <span className="font-mono" style={{ fontSize: 11, color: "rgba(255,255,255,0.5)" }}>CPA by Creative</span>
-              </div>
-              <div className="p-4">
-                <CPADistributionChart ads={ADS} />
-              </div>
+            <div className="flex items-center gap-2">
+              <span style={{ fontSize: 13, color: "rgba(255,255,255,0.35)", fontFamily: "var(--font-geist-mono)" }}>Min</span>
+              <span style={{ fontSize: 13, color: "rgba(255,255,255,0.7)", fontFamily: "var(--font-geist-mono)" }}>{mn}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span style={{ fontSize: 13, color: "rgba(255,255,255,0.35)", fontFamily: "var(--font-geist-mono)" }}>Max</span>
+              <span style={{ fontSize: 13, color: "rgba(255,255,255,0.7)", fontFamily: "var(--font-geist-mono)" }}>{mx}</span>
             </div>
           </div>
         </div>
 
-        {/* Ad Table */}
-        <div
-          className="rounded-lg overflow-hidden"
-          style={{ border: "1px solid rgba(255,255,255,0.06)", background: "rgba(255,255,255,0.02)" }}
-        >
-          <div className="px-4 py-2.5" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-            <span className="font-mono" style={{ fontSize: 11, color: "rgba(255,255,255,0.5)" }}>Creative Performance</span>
+        {/* Efficiency note */}
+        <div className="px-6 py-5">
+          <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", fontFamily: "var(--font-geist-mono)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 10 }}>
+            Efficiency
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full" style={{ minWidth: 900 }}>
-              <thead>
-                <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-                  {["Creative", "Status", "Spend", "CPA", "ROAS", "CTR", "Freq.", "Fatigue", "Trend"].map((h) => (
-                    <th
-                      key={h}
-                      className="font-mono text-left px-4 py-2.5 font-normal"
-                      style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", letterSpacing: "0.04em", textTransform: "uppercase" }}
-                    >
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {ADS.map((ad) => (
-                  <tr
-                    key={ad.id}
-                    className="cursor-pointer"
-                    onClick={() => setSelectedAd(selectedAd === ad.id ? null : ad.id)}
-                    style={{
-                      borderBottom: "1px solid rgba(255,255,255,0.04)",
-                      background: selectedAd === ad.id ? "rgba(255,255,255,0.03)" : "transparent",
-                    }}
-                    onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.03)"; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.background = selectedAd === ad.id ? "rgba(255,255,255,0.03)" : "transparent"; }}
-                  >
-                    <td className="px-4 py-2.5">
-                      <div className="font-mono" style={{ fontSize: 12, color: "rgba(255,255,255,0.8)" }}>
-                        {ad.name.split("—")[0].trim()}
-                      </div>
-                      <div className="font-mono" style={{ fontSize: 10, color: "rgba(255,255,255,0.3)" }}>
-                        {ad.name.split("—")[1]?.trim() || ""}
-                      </div>
-                    </td>
-                    <td className="px-4 py-2.5">
-                      <span
-                        className="font-mono inline-block px-1.5 py-0.5 rounded"
+          <div style={{ fontSize: 15, lineHeight: 1.6, color: "rgba(255,255,255,0.65)" }}>
+            {creative.fatigue > 70
+              ? `This creative is fatigued. Frequency at ${creative.frequency.toFixed(1)}x suggests the audience has seen it too many times. Consider pausing or rotating in a fresh variant.`
+              : creative.fatigue > 40
+              ? `Performance is holding but showing early signs of fatigue. Monitor frequency closely — you have roughly 5–7 days before efficiency drops meaningfully.`
+              : creative.status === "learning"
+              ? `Still in the learning phase. Avoid making budget or targeting changes until the platform has enough signal to optimize delivery.`
+              : `This creative is performing well with low fatigue. There's room to scale spend if the audience segment supports it.`
+            }
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+/* ───── page ───── */
+
+export default function AnalyzerPage() {
+  const [selectedCreative, setSelectedCreative] = useState<Creative | null>(null);
+  const totalSpend = CAMPAIGNS.reduce((s, c) => s + c.spend, 0);
+  const allCreatives = CAMPAIGNS.flatMap(c => c.adSets.flatMap(as => as.creatives));
+  const totalConv = allCreatives.reduce((s, cr) => s + cr.conversions, 0);
+  const blendedCPA = totalSpend / totalConv;
+  const blendedROAS = allCreatives.reduce((s, cr) => s + cr.roas * cr.spend, 0) / totalSpend;
+
+  return (
+    <div className="min-h-screen" style={{ background: "#090909", color: "#e5e5e5" }}>
+      {/* Nav */}
+      <nav className="flex items-center px-6 h-13" style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
+        <div className="flex items-center gap-3">
+          <span style={{ fontSize: 15, fontWeight: 700, letterSpacing: "0.1em", fontFamily: "var(--font-geist-mono)" }}>GAS</span>
+          <span style={{ color: "rgba(255,255,255,0.12)", fontSize: 18 }}>/</span>
+          <span style={{ fontSize: 15, color: "rgba(255,255,255,0.6)" }}>Analyzer</span>
+        </div>
+      </nav>
+
+      {/* Two-column layout */}
+      <div className="flex" style={{ minHeight: "calc(100vh - 52px)" }}>
+
+        {/* LEFT — Chat */}
+        <div className="flex-shrink-0 flex flex-col" style={{ width: "42%", borderRight: "1px solid rgba(255,255,255,0.07)" }}>
+          <div className="flex-1 overflow-y-auto px-6 py-6" style={{ maxHeight: "calc(100vh - 120px)" }}>
+            <div className="flex gap-3.5 mb-4">
+              <div className="flex-shrink-0 mt-1" style={{ width: 26, height: 26, borderRadius: 5, background: "rgba(255,255,255,0.06)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <svg width={14} height={14} viewBox="0 0 14 14">
+                  <circle cx={7} cy={4.5} r={1.8} fill="rgba(255,255,255,0.5)" />
+                  <circle cx={3.5} cy={10} r={1.4} fill="rgba(255,255,255,0.3)" />
+                  <circle cx={10.5} cy={10} r={1.4} fill="rgba(255,255,255,0.3)" />
+                </svg>
+              </div>
+              <div className="flex-1 min-w-0">
+                {ANALYSIS.map((block, bi) => {
+                  if (block.type === "heading") {
+                    return (
+                      <h3
+                        key={bi}
                         style={{
-                          fontSize: 10,
-                          background:
-                            ad.status === "active" ? "rgba(52,211,153,0.08)" :
-                            ad.status === "learning" ? "rgba(234,179,8,0.08)" :
-                            "rgba(255,255,255,0.04)",
-                          color:
-                            ad.status === "active" ? "rgba(52,211,153,0.7)" :
-                            ad.status === "learning" ? "rgba(234,179,8,0.7)" :
-                            "rgba(255,255,255,0.35)",
-                          border: `1px solid ${
-                            ad.status === "active" ? "rgba(52,211,153,0.15)" :
-                            ad.status === "learning" ? "rgba(234,179,8,0.15)" :
-                            "rgba(255,255,255,0.08)"
-                          }`,
+                          fontSize: 14,
+                          fontWeight: 500,
+                          letterSpacing: "0.06em",
+                          textTransform: "uppercase",
+                          color: "rgba(255,255,255,0.6)",
+                          marginTop: bi === 0 ? 0 : 28,
+                          marginBottom: 10,
+                          fontFamily: "var(--font-geist-mono)",
                         }}
                       >
-                        {ad.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2.5 font-mono" style={{ fontSize: 12, color: "rgba(255,255,255,0.7)" }}>
-                      ${ad.spend.toLocaleString()}
-                    </td>
-                    <td className="px-4 py-2.5 font-mono" style={{ fontSize: 12, color: ad.cpa < 13 ? "rgba(52,211,153,0.8)" : ad.cpa < 16 ? "rgba(255,255,255,0.7)" : "rgba(239,68,68,0.8)" }}>
-                      ${ad.cpa.toFixed(2)}
-                    </td>
-                    <td className="px-4 py-2.5 font-mono" style={{ fontSize: 12, color: ad.roas >= 4 ? "rgba(52,211,153,0.8)" : "rgba(255,255,255,0.7)" }}>
-                      {ad.roas.toFixed(1)}x
-                    </td>
-                    <td className="px-4 py-2.5 font-mono" style={{ fontSize: 12, color: "rgba(255,255,255,0.6)" }}>
-                      {ad.ctr.toFixed(2)}%
-                    </td>
-                    <td className="px-4 py-2.5 font-mono" style={{ fontSize: 12, color: ad.frequency > 3 ? "rgba(239,68,68,0.7)" : "rgba(255,255,255,0.6)" }}>
-                      {ad.frequency.toFixed(1)}x
-                    </td>
-                    <td className="px-4 py-2.5">
-                      <FatigueBar value={ad.fatigue} />
-                    </td>
-                    <td className="px-4 py-2.5">
-                      <MiniSparkline
-                        data={ad.sparkline}
-                        color={ad.trend === "up" ? "rgba(52,211,153,0.6)" : ad.trend === "down" ? "rgba(239,68,68,0.5)" : "rgba(255,255,255,0.3)"}
-                      />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                        {block.text}
+                      </h3>
+                    );
+                  }
+                  if (block.type === "action") {
+                    return (
+                      <div key={bi} className="flex gap-2.5" style={{ fontSize: 16, lineHeight: 1.65, color: "rgba(255,255,255,0.8)", marginBottom: 6 }}>
+                        <span style={{ color: "rgba(255,255,255,0.4)", flexShrink: 0 }}>→</span>
+                        <span>{block.text}</span>
+                      </div>
+                    );
+                  }
+                  return (
+                    <p key={bi} style={{ fontSize: 16, lineHeight: 1.7, color: "rgba(255,255,255,0.75)", marginBottom: 14 }}>
+                      {block.text}
+                    </p>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* Chat input */}
+          <div className="px-6 pb-5 pt-2">
+            <div
+              className="flex items-center gap-2.5 px-4 py-3"
+              style={{
+                background: "rgba(255,255,255,0.03)",
+                border: "1px solid rgba(255,255,255,0.08)",
+                borderRadius: 10,
+              }}
+            >
+              <input
+                type="text"
+                placeholder="Ask about your ad account..."
+                className="flex-1 bg-transparent outline-none placeholder-[rgba(255,255,255,0.35)]"
+                style={{ fontSize: 15, color: "rgba(255,255,255,0.8)" }}
+              />
+              <button
+                style={{
+                  background: "rgba(255,255,255,0.06)",
+                  border: "none",
+                  borderRadius: 6,
+                  padding: "5px 10px",
+                  cursor: "pointer",
+                  color: "rgba(255,255,255,0.3)",
+                }}
+              >
+                <svg width={16} height={16} viewBox="0 0 16 16">
+                  <path d="M2 8h12M9 3l5 5-5 5" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Bottom spacer */}
-        <div className="h-12" />
+        {/* RIGHT — Data */}
+        <div className="flex-1 overflow-y-auto" style={{ maxHeight: "calc(100vh - 52px)" }}>
+          {/* Stats */}
+          <div className="flex items-baseline gap-10 px-6 py-5" style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+            {[
+              { label: "Spend", val: `$${(totalSpend / 1000).toFixed(1)}k` },
+              { label: "Conv.", val: totalConv.toLocaleString() },
+              { label: "CPA", val: `$${blendedCPA.toFixed(2)}` },
+              { label: "ROAS", val: `${blendedROAS.toFixed(1)}x` },
+            ].map(s => (
+              <div key={s.label} className="flex items-baseline gap-2.5">
+                <span style={{ fontSize: 14, color: "rgba(255,255,255,0.45)", fontFamily: "var(--font-geist-mono)" }}>{s.label}</span>
+                <span style={{ fontSize: 22, fontWeight: 600, fontFamily: "var(--font-geist-mono)", color: "white", letterSpacing: "-0.02em" }}>{s.val}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Chart */}
+          <div className="px-6 pt-5 pb-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+            <div className="flex items-center justify-between mb-3">
+              <span style={{ fontSize: 14, color: "rgba(255,255,255,0.5)" }}>Daily spend & conversions — 30 days</span>
+              <div className="flex items-center gap-5">
+                <div className="flex items-center gap-2">
+                  <div style={{ width: 10, height: 10, background: "rgba(255,255,255,0.08)", borderRadius: 2 }} />
+                  <span style={{ fontSize: 14, color: "rgba(255,255,255,0.4)", fontFamily: "var(--font-geist-mono)" }}>spend</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div style={{ width: 10, height: 2, background: "white", borderRadius: 1 }} />
+                  <span style={{ fontSize: 14, color: "rgba(255,255,255,0.4)", fontFamily: "var(--font-geist-mono)" }}>conv</span>
+                </div>
+              </div>
+            </div>
+            <AccountChart data={ACCOUNT_DAILY} />
+          </div>
+
+          {/* Campaign tree */}
+          <div className="px-6 pt-5">
+            <div className="flex items-center mb-3 px-1">
+              <span className="flex-1" style={{ fontSize: 14, color: "rgba(255,255,255,0.45)" }}>Campaigns</span>
+              <div className="flex" style={{ flexShrink: 0 }}>
+                <span style={{ fontSize: 14, color: "rgba(255,255,255,0.3)", fontFamily: "var(--font-geist-mono)", width: 58, textAlign: "right" }}>Spend</span>
+                <span style={{ fontSize: 14, color: "rgba(255,255,255,0.3)", fontFamily: "var(--font-geist-mono)", width: 58, textAlign: "right" }}>CPA</span>
+                <span style={{ fontSize: 14, color: "rgba(255,255,255,0.3)", fontFamily: "var(--font-geist-mono)", width: 46, textAlign: "right" }}>ROAS</span>
+                <span style={{ width: 84 }} />
+              </div>
+            </div>
+            {CAMPAIGNS.map(c => (
+              <CampaignNode key={c.id} campaign={c} onSelectCreative={setSelectedCreative} />
+            ))}
+          </div>
+
+          <div className="h-8" />
+        </div>
       </div>
 
-      {/* Blink cursor animation */}
-      <style>{`
-        @keyframes blink {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0; }
-        }
-      `}</style>
+      {selectedCreative && (
+        <CreativeDrawer creative={selectedCreative} onClose={() => setSelectedCreative(null)} />
+      )}
     </div>
   );
 }
