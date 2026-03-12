@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "skills": {
+    "liquid-theme-standards": {
+      "source": "benjaminsehl/liquid-skills",
+      "sourceType": "github",
+      "computedHash": "bd00f2a2455861201c66d6b84d6153135e8f62e27326f7563e7a656ba53dada1"
+    }
+  }
+}

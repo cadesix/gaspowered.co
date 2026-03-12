@@ -141,24 +141,24 @@ interface AnalysisBlock {
 }
 
 const ANALYSIS: AnalysisBlock[] = [
-  { type: "heading", text: "Account health" },
-  { type: "paragraph", text: "8 creatives running across Meta and TikTok. 30-day spend is $24.3k at a blended 4.1x ROAS — above the 4.0x target. But two of the top three spenders are showing fatigue, and efficiency is declining week-over-week." },
-  { type: "heading", text: "Fatigue" },
-  { type: "paragraph", text: "\"75 Supplements → 1 Scoop\" is your biggest problem. Frequency has hit 4.2x, CTR dropped 34% in seven days, and it's been running unchanged for 28 days. It's still converting, but CPA is rising fast — you're buying diminishing returns." },
-  { type: "paragraph", text: "\"Morning Routine Stack\" is close behind. Was your best performer two weeks ago at $11.40 CPA. Now $13.72 and climbing. Frequency 3.8x. This creative is entering its final useful days." },
-  { type: "paragraph", text: "\"Travel Pack ASMR\" was correctly paused — 94/100 fatigue, fully exhausted." },
-  { type: "heading", text: "What to scale" },
-  { type: "paragraph", text: "\"Marathon Runner's Secret\" is your most efficient active creative — $12.42 CPA, 5.3x ROAS, and only at 35/100 fatigue after 11 days. It has room to grow. Increase budget 25–30%." },
-  { type: "paragraph", text: "\"Doctor Reacts\" is 4 days in with low frequency and climbing volume. Early signal is strong. Don't touch the budget yet — let Meta optimize through learning, then scale next week." },
-  { type: "paragraph", text: "\"Gut Health Explainer\" is your sleeper. 4.8x ROAS, low fatigue, and the motion graphics format seems to be resonating in a way your UGC isn't right now. Worth building more around this style." },
-  { type: "heading", text: "Weekend strategy" },
-  { type: "paragraph", text: "CPAs historically rise 15–22% on weekends for this account. Reduce overall spend 20% through Monday, then restore Tuesday. Exception: keep \"Fridge Restock ASMR\" steady — it's still in learning and needs consistent signal." },
-  { type: "heading", text: "Recommended actions" },
-  { type: "action", text: "Pause \"75 Supplements → 1 Scoop\" — fatigue is too high to justify continued spend" },
-  { type: "action", text: "Scale \"Marathon Runner's Secret\" budget +25%" },
-  { type: "action", text: "Reduce weekend budgets 20% across non-learning campaigns" },
-  { type: "action", text: "Queue 2–3 new creatives: creator-swap on Morning Routine, shorter cut of 75 Supplements, and another motion graphics piece" },
-  { type: "paragraph", text: "Projected impact: –8% spend, +12% conversions over the next 7 days." },
+  { type: "heading", text: "Scanning account" },
+  { type: "paragraph", text: "Pulling 30-day performance across 8 active creatives on Meta and TikTok. Total spend is $24.3k at a blended 4.1x ROAS — above the 4.0x target. But I'm seeing efficiency decline week-over-week. Two of the top three spenders are showing fatigue signals. Digging in." },
+  { type: "heading", text: "Fatigue analysis" },
+  { type: "paragraph", text: "\"75 Supplements → 1 Scoop\" is the biggest issue. Frequency at 4.2x, CTR down 34% in seven days, running unchanged for 28 days. It's still converting but CPA is rising fast — diminishing returns. I'm going to kill this one." },
+  { type: "paragraph", text: "\"Morning Routine Stack\" is close behind. Was the best performer two weeks ago at $11.40 CPA. Now $13.72 and climbing. Frequency 3.8x. This creative is entering its final useful days — I'll keep it running through the weekend but it's on the chopping block." },
+  { type: "paragraph", text: "\"Travel Pack ASMR\" was already paused — 94/100 fatigue, fully exhausted. Good call, nothing to do here." },
+  { type: "heading", text: "Scaling opportunities" },
+  { type: "paragraph", text: "\"Marathon Runner's Secret\" is the most efficient active creative — $12.42 CPA, 5.3x ROAS, only 35/100 fatigue after 11 days. This has headroom. Pushing budget up 25%." },
+  { type: "paragraph", text: "\"Doctor Reacts\" is 4 days in with low frequency and climbing volume. Early signal is strong but it's still in learning. I'm leaving this untouched — Meta needs consistent signal to optimize. Will revisit next week." },
+  { type: "paragraph", text: "\"Gut Health Explainer\" is a sleeper — 4.8x ROAS, low fatigue, and the motion graphics format is resonating in a way the UGC isn't right now. Flagging this as a template for the next batch of creatives." },
+  { type: "heading", text: "Weekend adjustment" },
+  { type: "paragraph", text: "CPAs historically rise 15–22% on weekends for this account. Pulling non-learning campaign budgets down 20% through Monday, restoring Tuesday. Exception: \"Fridge Restock ASMR\" stays steady — it's still in learning and needs consistent signal." },
+  { type: "heading", text: "Actions taken" },
+  { type: "action", text: "Paused \"75 Supplements → 1 Scoop\" — fatigue too high, CPA accelerating" },
+  { type: "action", text: "Scaled \"Marathon Runner's Secret\" budget +25% — strong efficiency, low fatigue" },
+  { type: "action", text: "Reduced weekend budgets 20% across non-learning campaigns" },
+  { type: "action", text: "Queued 3 new creatives: creator-swap on Morning Routine, shorter cut of 75 Supplements, new motion graphics piece based on Gut Health Explainer format" },
+  { type: "paragraph", text: "Projected impact: –8% spend, +12% conversions over the next 7 days. I'll re-evaluate Tuesday morning." },
 ];
 
 /* ───── sparkline ───── */
@@ -479,7 +479,7 @@ function CreativeDrawer({ creative, onClose }: { creative: Creative; onClose: ()
       />
       {/* Drawer */}
       <div
-        className="fixed top-0 right-0 bottom-0 z-50 overflow-y-auto"
+        className="fixed top-0 right-0 bottom-0 z-50 overflow-y-auto hide-scrollbar"
         style={{
           width: 420,
           background: "#111",
@@ -619,6 +619,10 @@ export default function AnalyzerPage() {
 
   return (
     <div className="min-h-screen" style={{ background: "#090909", color: "#e5e5e5" }}>
+      <style>{`
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      `}</style>
       {/* Nav */}
       <nav className="flex items-center px-6 h-13" style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
         <div className="flex items-center gap-3">
@@ -633,7 +637,7 @@ export default function AnalyzerPage() {
 
         {/* LEFT — Chat */}
         <div className="flex-shrink-0 flex flex-col" style={{ width: "42%", borderRight: "1px solid rgba(255,255,255,0.07)" }}>
-          <div className="flex-1 overflow-y-auto px-6 py-6" style={{ maxHeight: "calc(100vh - 120px)" }}>
+          <div className="flex-1 overflow-y-auto hide-scrollbar px-6 py-6" style={{ maxHeight: "calc(100vh - 120px)" }}>
             <div className="flex gap-3.5 mb-4">
               <div className="flex-shrink-0 mt-1" style={{ width: 26, height: 26, borderRadius: 5, background: "rgba(255,255,255,0.06)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <svg width={14} height={14} viewBox="0 0 14 14">
@@ -693,7 +697,7 @@ export default function AnalyzerPage() {
             >
               <input
                 type="text"
-                placeholder="Ask about your ad account..."
+                placeholder="Override agent decisions..."
                 className="flex-1 bg-transparent outline-none placeholder-[rgba(255,255,255,0.35)]"
                 style={{ fontSize: 15, color: "rgba(255,255,255,0.8)" }}
               />
@@ -716,7 +720,7 @@ export default function AnalyzerPage() {
         </div>
 
         {/* RIGHT — Data */}
-        <div className="flex-1 overflow-y-auto" style={{ maxHeight: "calc(100vh - 52px)" }}>
+        <div className="flex-1 overflow-y-auto hide-scrollbar" style={{ maxHeight: "calc(100vh - 52px)" }}>
           {/* Stats */}
           <div className="flex items-baseline gap-10 px-6 py-5" style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
             {[

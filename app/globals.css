@@ -24,3 +24,14 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Hide Vercel deployment widget */
+[data-nextjs-toast],
+#__next-build-indicator,
+nextjs-portal,
+[data-nextjs-dialog-overlay] ~ div[style*="fixed"][style*="bottom"] {
+  display: none !important;
+}
+body > div[style*="position: fixed"][style*="bottom"]:has(a[href*="vercel"]) {
+  display: none !important;
+}

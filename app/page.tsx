@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import Script from "next/script";
 
 function MarchingHLine({ className = "" }: { className?: string }) {
   return (
@@ -86,8 +85,6 @@ export default function SalesPage() {
 
   return (
     <div className="min-h-screen bg-black text-white" style={{ fontFamily: "'Saans', sans-serif" }}>
-      <link href="https://assets.calendly.com/assets/external/widget.css" rel="stylesheet" />
-      <Script src="https://assets.calendly.com/assets/external/widget.js" strategy="lazyOnload" />
       <style>{`
         @font-face {
           font-family: 'PPMondwest';
